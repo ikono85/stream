@@ -6,6 +6,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Icon } from '@/components/Icon'
 import { clock } from '@/lib/format'
 import { useFullscreen } from '@/player/useFullscreen'
+import { usePictureInPicture } from '@/player/usePictureInPicture'
+import { useMediaSession } from '@/player/useMediaSession'
 import type { Source, Subtitle } from '@/types'
 
 type Status = 'loading' | 'ready' | 'error'
@@ -16,6 +18,8 @@ interface Props {
   title: string
   /** Second line under the title — episode label, year, whatever fits. */
   caption?: string
+  /** Cover handed to the system's media controls. */
+  artwork?: string
   /** Resume point in seconds. */
   startAt?: number
   onProgress: (seconds: number, duration: number) => void
@@ -31,9 +35,33 @@ interface Props {
   headerExtra?: ReactNode
   /** Shown under the title when a room is holding playback. */
   notice?: string | null
+  /** What follows this episode. Null for a film or a season finale. */
+  upNext?: UpNext | null
+  /** "Lire maintenant" — start the next episode without waiting for the end. */
+  onUpNextPlay?: () => void
+  /** "Annuler" — the viewer does not want the next episode to start. */
+  onUpNextDismiss?: () => void
+}
+
+/** The card that counts down to the next episode. */
+export interface UpNext {
+  title: string
+  /** Second line — "Saison 1, episode 3". */
+  caption?: string
+  /**
+   * False inside a shared room: leaving early would strand the others on an
+   * episode this viewer has already left.
+   */
+  skippable?: boolean
 }
 
 const SEEK_STEP = 10
+/**
+ * How long the card stays on screen. It counts the video's own remaining time
+ * rather than a timer of its own, so pausing or scrubbing back dismisses it
+ * honestly instead of racing the picture.
+ */
+const UP_NEXT_LEAD = 15
 
 /**
  * What a shared room needs from the player: drive it, and read where it is.
@@ -49,8 +77,9 @@ export interface PlayerHandle {
 }
 
 export function Player({
-  sources, subtitles = [], title, caption, startAt = 0, onProgress, onEnded, onExit,
+  sources, subtitles = [], title, caption, artwork, startAt = 0, onProgress, onEnded, onExit,
   handle, onLocalAction, onBuffering, headerExtra, notice,
+  upNext, onUpNextPlay, onUpNextDismiss,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const shellRef = useRef<HTMLDivElement>(null)
@@ -72,8 +101,10 @@ export function Player({
   const [controlsVisible, setControlsVisible] = useState(true)
   const [menu, setMenu] = useState<'quality' | 'subtitles' | null>(null)
   const [track, setTrack] = useState(-1)
+  const [upNextDismissed, setUpNextDismissed] = useState(false)
 
   const { active: isFullscreen, toggle: toggleFullscreen } = useFullscreen(shellRef)
+  const pip = usePictureInPicture(videoRef)
 
   /**
    * Keep only what this browser will actually decode, then one entry per
@@ -289,14 +320,27 @@ export function Player({
   useEffect(() => { if (menu) setControlsVisible(true) }, [menu])
 
   /* ---- controls ---- */
+  const playNow = useCallback(() => {
+    const video = videoRef.current
+    if (!video || !video.paused) return
+    void video.play().catch(() => {})
+    onLocalAction?.(true, video.currentTime)
+  }, [onLocalAction])
+
+  const pauseNow = useCallback(() => {
+    const video = videoRef.current
+    if (!video || video.paused) return
+    video.pause()
+    onLocalAction?.(false, video.currentTime)
+  }, [onLocalAction])
+
+  /** The surface, the space bar and the button all come through here. */
   const togglePlay = useCallback(() => {
     const video = videoRef.current
     if (!video) return
-    const next = video.paused
-    if (next) void video.play().catch(() => {})
-    else video.pause()
-    onLocalAction?.(next, video.currentTime)
-  }, [onLocalAction])
+    if (video.paused) playNow()
+    else pauseNow()
+  }, [playNow, pauseNow])
 
   const onSurfaceClick = useCallback(() => {
     if (menu) { setMenu(null); return }
@@ -344,6 +388,11 @@ export function Player({
     setMenu(null)
   }, [])
 
+  const dismissUpNext = useCallback(() => {
+    setUpNextDismissed(true)
+    onUpNextDismiss?.()
+  }, [onUpNextDismiss])
+
   /** Swap rendition without losing the viewer's place. */
   const chooseQuality = useCallback((index: number) => {
     const video = videoRef.current
@@ -361,6 +410,21 @@ export function Player({
     video.addEventListener('loadedmetadata', restore)
   }, [sourceIndex])
 
+  /* ---- the system's own controls: lock screen, media keys, headset ---- */
+  useMediaSession({
+    title,
+    caption,
+    artwork,
+    playing,
+    position: time,
+    duration,
+    onPlay: playNow,
+    onPause: pauseNow,
+    onSeekBy: seekBy,
+    onSeekTo: seekTo,
+    onNext: upNext && upNext.skippable !== false ? onUpNextPlay : undefined,
+  })
+
   /* ---- keyboard ---- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -376,6 +440,10 @@ export function Player({
         case 'ArrowDown': e.preventDefault(); applyVolume(volume - 0.1); break
         case 'f': e.preventDefault(); toggleFullscreen(); break
         case 'm': e.preventDefault(); toggleMute(); break
+        case 'p':
+          e.preventDefault()
+          if (pip.supported) pip.toggle()
+          break
         case 'c':
           e.preventDefault()
           if (subtitles.length) chooseTrack(track === -1 ? 0 : -1)
@@ -391,7 +459,7 @@ export function Player({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, seekBy, applyVolume, toggleFullscreen, toggleMute, chooseTrack, onExit, wake, volume, track, subtitles.length, menu])
+  }, [togglePlay, seekBy, applyVolume, toggleFullscreen, toggleMute, chooseTrack, onExit, wake, volume, track, subtitles.length, menu, pip])
 
   /* ---- scrub bar ---- */
   const barRef = useRef<HTMLDivElement>(null)
@@ -423,6 +491,14 @@ export function Player({
   const pct = duration > 0 ? (time / duration) * 100 : 0
   const bufferedPct = duration > 0 ? (buffered / duration) * 100 : 0
   const chrome = controlsVisible || !playing || status === 'error'
+
+  /* A one-minute test clip should not be covered for a quarter of its length. */
+  const remaining = duration > 0 ? duration - time : 0
+  const upNextLead = Math.min(UP_NEXT_LEAD, duration * 0.2)
+  const upNextVisible = Boolean(
+    upNext && !upNextDismissed && status === 'ready' && duration > 0 && !scrubbing &&
+    remaining > 0 && remaining <= upNextLead,
+  )
 
   return (
     <div
@@ -647,6 +723,19 @@ export function Player({
                     </div>
                   )}
 
+                  {pip.supported && (
+                    <button
+                      type="button" onClick={pip.toggle}
+                      aria-label={pip.active ? "Quitter l'image dans l'image" : "Image dans l'image"}
+                      aria-pressed={pip.active}
+                      className={`grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-paper/10 ${
+                        pip.active ? 'text-lamp-500' : 'text-paper'
+                      }`}
+                    >
+                      <Icon name="pip" size={20} />
+                    </button>
+                  )}
+
                   <button
                     type="button" onClick={toggleFullscreen}
                     aria-label={isFullscreen ? 'Quitter le plein écran' : 'Plein écran'}
@@ -658,6 +747,47 @@ export function Player({
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Up next */}
+      <AnimatePresence>
+        {upNextVisible && upNext && (
+          <motion.div
+            key="upnext"
+            initial={{ opacity: 0, y: reduced ? 0 : 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: reduced ? 0 : 10 }}
+            transition={{ duration: reduced ? 0 : 0.2 }}
+            aria-label={`Episode suivant : ${upNext.title}`}
+            className="absolute bottom-24 right-3 w-[min(20rem,calc(100%-1.5rem))] rounded-xl border border-ink-600 bg-ink-900/95 p-4 backdrop-blur-md glow-lift sm:bottom-28 sm:right-6"
+          >
+            <p className="text-xs text-haze-400">
+              Épisode suivant dans{' '}
+              <span className="font-semibold text-lamp-500 nums-tabular">{Math.ceil(remaining)}</span> s
+            </p>
+            <p className="mt-1.5 truncate font-wide text-sm font-bold text-paper">{upNext.title}</p>
+            {upNext.caption && <p className="mt-0.5 truncate text-xs text-haze-300">{upNext.caption}</p>}
+            <div className="mt-3 flex items-center gap-2">
+              {upNext.skippable !== false && (
+                <button
+                  type="button"
+                  onClick={onUpNextPlay}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-lamp-500 px-4 text-sm font-semibold text-ink-950 transition-colors hover:bg-lamp-400"
+                >
+                  <Icon name="next" size={15} />
+                  Lire maintenant
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={dismissUpNext}
+                className="inline-flex h-9 items-center rounded-full border border-ink-500 px-4 text-sm text-paper transition-colors hover:bg-ink-800"
+              >
+                Annuler
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Icon } from '@/components/Icon'
 import { useLibrary } from '@/hooks/libraryContext'
-import { runtime, seasonCount, remaining } from '@/lib/format'
+import { runtime, seasonCount, remaining, rating } from '@/lib/format'
 import { posterArt, backdropArt } from '@/lib/poster'
 import { hasVideo } from '@/data/catalog'
 import type { Entry, Progress } from '@/types'
@@ -44,31 +44,10 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
           </div>
         </div>
 
-        {/* Pointer-only affordance; everything here is reachable another way. */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-end gap-1.5 p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 max-[1024px]:hidden">
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); toggleList(entry.id) }}
-            aria-label={saved ? `Retirer ${entry.title} de ma liste` : `Ajouter ${entry.title} à ma liste`}
-            className="pointer-events-auto grid h-8 w-8 place-items-center rounded-full bg-ink-950/80 text-paper backdrop-blur-sm transition-colors hover:bg-lamp-500 hover:text-ink-950"
-          >
-            <Icon name={saved ? 'check' : 'plus'} size={16} />
-          </button>
-        </div>
-
-        {playable && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 max-[1024px]:hidden">
-            <Link
-              to={`/lecture/${entry.id}`}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={`Lire ${entry.title}`}
-              className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-lamp-500 text-ink-950 glow-lamp"
-            >
-              <Icon name="play" size={20} className="translate-x-px" />
-            </Link>
-          </div>
-        )}
-
+        {/* The whole card leads to the detail page. It comes FIRST so the
+            controls below paint on top of it: among absolutely positioned
+            siblings the last one wins the stack, and this link would
+            otherwise swallow every click meant for a button. */}
         <Link
           to={`/titre/${entry.id}`}
           className="absolute inset-0 rounded-[var(--radius-poster)]"
@@ -76,6 +55,56 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
         >
           <span className="sr-only">{entry.title}</span>
         </Link>
+
+        {/* Pointer-only panel: everything it offers is reachable another way,
+            so touch screens — where a hover state sticks — never see it. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 translate-y-2 p-2 opacity-0 transition-[opacity,transform] duration-200 ease-[var(--ease-out-soft)] group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 max-[1024px]:hidden">
+          <div className="pointer-events-auto rounded-[var(--radius-poster)] border border-ink-600/80 bg-ink-950/95 p-2.5 backdrop-blur-md">
+            {/* The panel hides the resting title, and a generated poster
+                carries none of its own — so it has to be repeated here. */}
+            <h3 className="font-wide text-[0.78rem] font-bold leading-tight line-clamp-2 text-paper">
+              {entry.title}
+            </h3>
+
+            <p className="mt-1 flex items-center gap-2 text-[0.66rem] text-haze-400 nums-tabular">
+              <span>{entry.year}</span>
+              {metaLine(entry) && <span>{metaLine(entry)}</span>}
+              {entry.rating > 0 && <span className="text-lamp-500">{rating(entry.rating)}</span>}
+            </p>
+
+            {entry.genres.length > 0 && (
+              <p className="mt-1 truncate text-[0.66rem] text-haze-300">{entry.genres.join(' · ')}</p>
+            )}
+
+            <p className="mt-1.5 text-[0.68rem] leading-snug line-clamp-2 text-haze-400">
+              {entry.synopsis}
+            </p>
+
+            <div className="mt-2.5 flex items-center gap-1.5">
+              {playable && (
+                <Link
+                  to={`/lecture/${entry.id}`}
+                  aria-label={`Lire ${entry.title}`}
+                  className="grid h-8 w-8 place-items-center rounded-full bg-lamp-500 text-ink-950 transition-colors hover:bg-lamp-400"
+                >
+                  <Icon name="play" size={15} className="translate-x-px" />
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => toggleList(entry.id)}
+                aria-label={saved ? `Retirer ${entry.title} de ma liste` : `Ajouter ${entry.title} à ma liste`}
+                className={`grid h-8 w-8 place-items-center rounded-full border transition-colors ${
+                  saved
+                    ? 'border-lamp-500 text-lamp-500 hover:bg-lamp-500 hover:text-ink-950'
+                    : 'border-ink-500 text-paper hover:border-haze-400 hover:bg-ink-800'
+                }`}
+              >
+                <Icon name={saved ? 'check' : 'plus'} size={15} />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </article>
   )

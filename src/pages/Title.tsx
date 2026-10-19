@@ -4,12 +4,23 @@ import { PageTransition } from '@/components/layout/PageTransition'
 import { Row } from '@/components/Row'
 import { PosterCard } from '@/components/Card'
 import { Icon } from '@/components/Icon'
+import { TrailerOverlay } from '@/components/Trailer'
 import { useLibrary } from '@/hooks/libraryContext'
 import { CATALOG, byId, hasVideo, episodesOf } from '@/data/catalog'
 import { posterArt, bannerArt } from '@/lib/poster'
 import { runtime, seasonCount, rating, clock } from '@/lib/format'
 import { NotFound } from '@/pages/NotFound'
 import type { Entry } from '@/types'
+
+/** Two letters for a missing portrait — better than an empty disc. */
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('')
+}
 
 function similar(entry: Entry): Entry[] {
   return CATALOG
@@ -26,12 +37,14 @@ export function Title() {
   const entry = id ? byId(id) : undefined
   const { inList, toggleList, progressFor } = useLibrary()
   const [season, setSeason] = useState(1)
+  const [trailerOpen, setTrailerOpen] = useState(false)
 
   const related = useMemo(() => (entry ? similar(entry) : []), [entry])
 
   if (!entry) return <NotFound />
 
   const saved = inList(entry.id)
+  const people = entry.people ?? []
   const playable = hasVideo(entry)
   const episodes = episodesOf(entry)
   const current = entry.seasons?.find((s) => s.number === season) ?? entry.seasons?.[0]
@@ -102,7 +115,7 @@ export function Title() {
               <p className="mt-6 max-w-[62ch] leading-relaxed text-haze-300">{entry.synopsis}</p>
 
               <div className="mt-7 flex flex-wrap items-center gap-3">
-                {playable ? (
+                {playable && (
                   <Link
                     to={playHref}
                     className="inline-flex h-12 items-center gap-2.5 rounded-full bg-lamp-500 px-7 font-semibold text-ink-950 transition-[background-color,box-shadow] hover:bg-lamp-400 hover:glow-lamp"
@@ -110,11 +123,20 @@ export function Title() {
                     <Icon name="play" size={19} />
                     {resume ? 'Reprendre' : 'Regarder'}
                   </Link>
-                ) : (
-                  <p className="inline-flex h-12 items-center gap-2.5 rounded-full border border-ink-600 bg-ink-900 px-6 text-sm text-haze-400">
-                    <Icon name="warning" size={17} />
-                    Aucune source vidéo configurée
-                  </p>
+                )}
+
+                {/* With nothing to play, the trailer is the only thing on offer,
+                    so it takes the prominent button rather than sitting beside
+                    a warning as an afterthought. */}
+                {entry.trailer && (
+                  <button
+                    type="button"
+                    onClick={() => setTrailerOpen(true)}
+                    className={playable ? 'inline-flex h-12 items-center gap-2.5 rounded-full border border-ink-500 bg-ink-900/70 px-6 font-medium text-paper transition-colors hover:border-haze-400 hover:bg-ink-800' : 'inline-flex h-12 items-center gap-2.5 rounded-full bg-lamp-500 px-7 font-semibold text-ink-950 transition-[background-color,box-shadow] hover:bg-lamp-400 hover:glow-lamp'}
+                  >
+                    <Icon name="play" size={18} />
+                    Bande-annonce
+                  </button>
                 )}
 
                 <button
@@ -125,6 +147,13 @@ export function Title() {
                   <Icon name={saved ? 'check' : 'plus'} size={18} />
                   {saved ? 'Dans ma liste' : 'Ma liste'}
                 </button>
+
+                {!playable && (
+                  <p className="inline-flex h-12 items-center gap-2.5 rounded-full border border-ink-600 bg-ink-900 px-6 text-sm text-haze-400">
+                    <Icon name="warning" size={17} />
+                    Aucune source vidéo configurée
+                  </p>
+                )}
               </div>
 
               <dl className="mt-8 grid gap-x-10 gap-y-4 text-sm sm:grid-cols-2">
@@ -134,7 +163,7 @@ export function Title() {
                     <dd className="mt-1 text-paper">{entry.director}</dd>
                   </div>
                 )}
-                {entry.cast.length > 0 && (
+                {entry.cast.length > 0 && people.length === 0 && (
                   <div>
                     <dt className="text-haze-400">Distribution</dt>
                     <dd className="mt-1 text-paper">{entry.cast.join(', ')}</dd>
@@ -150,6 +179,40 @@ export function Title() {
                   </div>
                 )}
               </dl>
+
+              {people.length > 0 && (
+                <section className="mt-10">
+                  <h2 className="font-wide text-xs font-bold uppercase tracking-[0.14em] text-haze-400">
+                    Distribution
+                  </h2>
+                  <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-6">
+                    {people.map((person) => (
+                      <li key={`${person.name}-${person.character ?? ''}`} className="w-20 text-center sm:w-[5.5rem]">
+                        {person.photo ? (
+                          <img
+                            src={person.photo}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="mx-auto h-20 w-20 rounded-full bg-ink-800 object-cover sm:h-[5.5rem] sm:w-[5.5rem]"
+                          />
+                        ) : (
+                          <span
+                            aria-hidden="true"
+                            className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-ink-600 bg-ink-900 font-wide text-base font-bold text-haze-400 sm:h-[5.5rem] sm:w-[5.5rem]"
+                          >
+                            {initials(person.name)}
+                          </span>
+                        )}
+                        <p className="mt-2 text-xs font-medium leading-tight text-paper">{person.name}</p>
+                        {person.character && (
+                          <p className="mt-0.5 text-[0.68rem] leading-tight text-haze-400">{person.character}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
 
               {entry.demo && (
                 <p className="mt-8 flex max-w-[62ch] items-start gap-2.5 rounded-[var(--radius-panel)] border border-ink-600 bg-ink-900/60 p-4 text-sm leading-relaxed text-haze-400">
@@ -253,6 +316,14 @@ export function Title() {
             {related.map((e) => <PosterCard key={e.id} entry={e} />)}
           </Row>
         </div>
+      )}
+      {entry.trailer && (
+        <TrailerOverlay
+          trailer={entry.trailer}
+          title={entry.title}
+          open={trailerOpen}
+          onClose={() => setTrailerOpen(false)}
+        />
       )}
     </PageTransition>
   )

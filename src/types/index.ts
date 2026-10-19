@@ -35,6 +35,15 @@ export interface Season {
   episodes: Episode[]
 }
 
+/** A credited person, with a portrait when the source provides one. */
+export interface Person {
+  name: string
+  /** Role played, when known. */
+  character?: string
+  /** Portrait URL, same 2:3 shape as a poster. */
+  photo?: string
+}
+
 export interface Entry {
   id: string
   kind: Kind
@@ -45,6 +54,16 @@ export interface Entry {
   /** Out of 10. */
   rating: number
   cast: string[]
+  /**
+   * Billed cast with portraits and roles, when a source provides them.
+   * `cast` above remains the plain-text fallback, and the one search reads.
+   */
+  people?: Person[]
+  /**
+   * YouTube key of a trailer. Not a source: it plays in an overlay on the
+   * detail page, never in the player.
+   */
+  trailer?: string
   director: string
   /** Films only, in minutes. */
   runtime?: number

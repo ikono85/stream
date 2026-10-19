@@ -4,7 +4,7 @@ type Name =
   | 'volume' | 'mute' | 'expand' | 'collapse'
   | 'quality' | 'subtitles' | 'info' | 'menu' | 'user'
   | 'replay' | 'back10' | 'forward10' | 'trash' | 'warning'
-  | 'together' | 'send' | 'link'
+  | 'together' | 'send' | 'link' | 'pip' | 'next'
 
 /** Filled glyphs — everything else is stroked. */
 const FILLED = new Set<Name>(['play'])
@@ -37,6 +37,8 @@ const PATHS: Record<Name, string> = {
   together: 'M9 11.5a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8ZM2.5 19.5a6.5 6.5 0 0 1 13 0M16.5 5.2a3.4 3.4 0 0 1 0 6.6M18 14.2a6.5 6.5 0 0 1 3.5 5.3',
   send: 'M4.5 12 20 5l-7 15-2.2-6.3L4.5 12Z',
   link: 'M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.4 1.4M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.4-1.4',
+  pip: 'M3.5 5.5h17a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1ZM12 12.5h7v4.5h-7Z',
+  next: 'M7 6.2v11.6a.7.7 0 0 0 1.07.6l9.1-5.8a.7.7 0 0 0 0-1.2L8.07 5.6A.7.7 0 0 0 7 6.2ZM19.8 6v12',
 }
 
 interface Props {

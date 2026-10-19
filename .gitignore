@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Mock-up posters: distributors' artwork, not ours to redistribute.
+public/affiches/

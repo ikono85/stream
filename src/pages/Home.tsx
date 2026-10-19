@@ -19,6 +19,8 @@ export function Home() {
     [],
   )
 
+  const playableCount = useMemo(() => CATALOG.filter(hasVideo).length, [])
+
   const rows = useMemo(() => ({
     playable: CATALOG.filter(hasVideo).sort(byPopularity),
     trending: [...CATALOG].sort(byPopularity).slice(0, 14),
@@ -48,12 +50,11 @@ export function Home() {
       <p className="gutter mx-auto flex max-w-[90rem] items-start gap-2.5 border-y border-ink-700 bg-ink-900/40 py-3 text-xs leading-relaxed text-haze-400">
         <Icon name="info" size={15} className="mt-px shrink-0" />
         <span>
-          Catalogue de démonstration : la plupart de ces titres sont inventés et n'ont pas de
-          vidéo. Quatre courts métrages sous licence Creative Commons et une{' '}
+          Catalogue de démonstration : {playableCount} titres sur {CATALOG.length} se lisent
+          réellement — quatre courts métrages sous licence Creative Commons et une{' '}
           <Link to="/titre/mire-lucarne" className="text-haze-300 underline underline-offset-2 transition-colors hover:text-paper">
             mire de test
-          </Link>{' '}
-          se lisent réellement.
+          </Link>. Les autres n'ont aucun fichier vidéo associé.
         </span>
       </p>
 

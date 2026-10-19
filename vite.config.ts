@@ -26,6 +26,11 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
-  server: { host: true, port: 5173 },
-  preview: { host: true, port: 4173 },
+  /**
+   * strictPort: fail loudly rather than slide to 5174. The shared-room relay
+   * lives in this server, so a second one on another port means two rooms
+   * that cannot hear each other — a confusing failure to chase down.
+   */
+  server: { host: true, port: 5173, strictPort: true },
+  preview: { host: true, port: 4173, strictPort: true },
 })

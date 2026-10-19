@@ -191,6 +191,44 @@ Comptez plusieurs minutes à plusieurs heures de calcul par film.
 
 ---
 
+## Importer un catalogue depuis TMDB
+
+Pour remplir la grille avec de vrais titres — vraies affiches, vrais
+génériques, vrais synopsis — sans rien saisir à la main :
+
+```bash
+npm run import:tmdb -- --key=VOTRE_CLE
+```
+
+La clé est gratuite : créez un compte sur
+[themoviedb.org](https://www.themoviedb.org/signup), puis Paramètres →
+API → demandez une clé pour usage personnel.
+
+Le script écrit `src/data/tmdb.generated.ts`, que `catalog.ts` ajoute au
+catalogue. Relancez-le pour rafraîchir. Quelques options :
+
+```bash
+npm run import:tmdb -- --key=... --pages=10 --list=top_rated --lang=en-US
+```
+
+`--pages` compte vingt titres par page, `--list` accepte `popular`,
+`top_rated`, `now_playing` et `upcoming`.
+
+**La clé ne quitte pas votre machine.** Le script tourne une fois, écrit un
+fichier, et le navigateur ne la voit jamais. Ne déplacez pas ces appels dans
+l'application : une clé dans une page web est une clé publique.
+
+**TMDB ne fournit aucune vidéo.** L'import apporte les métadonnées et les
+affiches ; chaque titre arrive sans source, et sa fiche le dit. C'est de quoi
+éprouver la grille, les filtres et la recherche sur une vraie matière, pas un
+catalogue regardable.
+
+Si vous gardez cet import, TMDB demande que vous le mentionniez. Une ligne
+dans le pied de page suffit : « Ce produit utilise l'API de TMDB mais n'est ni
+approuvé ni certifié par TMDB. »
+
+---
+
 ## Remplacer les affiches
 
 Faute d'affiches, le projet en **génère** : chaque titre reçoit une composition
@@ -209,6 +247,64 @@ backdrop: '/affiches/noel-2019-large.jpg',
 L'entrée du hero peut aussi recevoir `heroVideo`, une boucle muette en fond. Elle
 n'est chargée que sur grand écran, si le système n'a pas demandé de réduire les
 animations et si le navigateur n'est pas en mode économie de données.
+
+---
+
+## Dans le lecteur
+
+### Enchaîner les épisodes
+
+Quinze secondes avant la fin d'un épisode — ou le dernier cinquième seulement,
+pour un clip très court — une carte annonce la suite et décompte le temps qui
+reste. « Lire maintenant » enchaîne tout de suite ; « Annuler » laisse
+l'épisode se terminer sans rien lancer, et le lecteur reste sur sa dernière
+image.
+
+Le décompte n'est pas une minuterie à part : c'est le temps restant de la
+vidéo. Revenir en arrière fait donc disparaître la carte, qui réapparaîtra le
+moment venu.
+
+Le dernier épisode d'une saison, comme un film, ramène à la fiche. Un épisode
+auquel aucun fichier n'est associé n'est jamais proposé.
+
+Dans une salle partagée, la carte décompte mais n'offre pas « Lire
+maintenant » : chacun bascule à la fin de son propre épisode, et partir en
+avance laisserait les autres derrière.
+
+### Image dans l'image
+
+Le bouton à gauche du plein écran, ou la touche `P`, détache la vidéo dans une
+petite fenêtre qui flotte au-dessus des autres applications.
+
+Chrome, Edge et Safari donnent cette possibilité aux pages ; Firefox la garde
+pour lui et propose son propre bouton au survol de la vidéo, et Chrome sur
+Android ne l'expose pas. Le bouton de Lucarne n'apparaît donc que là où il peut
+réellement fonctionner, plutôt que d'échouer sous le doigt.
+
+La synchronisation d'une salle partagée continue pendant ce temps. Le panneau
+de chat, lui, reste sur la page — comme en plein écran.
+
+### Les commandes du système
+
+Pendant la lecture, Lucarne annonce au système ce qui passe. Titre, épisode et
+affiche apparaissent sur l'écran verrouillé d'un téléphone, dans la fenêtre que
+Windows ouvre quand on appuie sur la touche pause du clavier, dans le « Now
+Playing » de macOS, sur l'écran d'un autoradio. Les touches média du clavier et
+les boutons d'un casque Bluetooth pilotent alors le lecteur ; « piste
+suivante » passe à l'épisode suivant.
+
+Rien ne sort sur le réseau et aucun compte n'est nécessaire : c'est une
+interface du navigateur, au même titre que le plein écran. Là où elle manque,
+il ne se passe simplement rien.
+
+Ces commandes passent par les mêmes fonctions que les boutons à l'écran. Une
+pause prise depuis l'écran verrouillé arrive donc dans une salle partagée
+exactement comme une pause prise dans la barre de contrôle. Dans une salle,
+« piste suivante » est retiré, pour la raison qui masque « Lire maintenant ».
+
+Faute d'affiche fournie, c'est la composition générée qui sert de pochette,
+redessinée en JPEG : les plateformes derrière cette interface ne décodent pas
+toutes le SVG.
 
 ---
 
@@ -376,6 +472,7 @@ seul flux.
 | `←` `→` | Reculer / avancer de 10 secondes |
 | `↑` `↓` | Volume |
 | `F` | Plein écran |
+| `P` | Image dans l'image |
 | `M` | Couper le son |
 | `C` | Sous-titres |
 | `Échap` | Ferme le menu ouvert, puis le plein écran, puis le lecteur |
@@ -404,7 +501,8 @@ src/
   sync/
     protocol.ts          Messages échangés avec le relais
     useWatchTogether.ts  Salle partagée : dérive, pause sur chargement, chat
-  player/                Lecteur vidéo et plein écran
+  player/                Lecteur vidéo, plein écran, image dans l'image,
+                         commandes du système
   pages/                 Accueil, catalogue, fiche, ma liste, lecture, 404
 server/
   sync.mjs               Le relais WebSocket des salles partagées

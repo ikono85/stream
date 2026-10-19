@@ -1,4 +1,5 @@
 import { planArtwork } from '@/lib/poster'
+import { TMDB_FILMS } from '@/data/tmdb.generated'
 import type { Entry, Episode, Season, Source, Subtitle } from '@/types'
 
 /**
@@ -185,6 +186,107 @@ const TEST_PATTERN: Entry = serie({
     ),
   ],
 })
+
+/* ---------- mock-up: real titles, artwork only ---------- */
+
+/**
+ * Eight films everyone recognises, added to see what the grid looks like with
+ * real photographic posters instead of the generated compositions. They are
+ * a layout exercise and nothing else.
+ *
+ * No `sources`, and none can ever be added here: these are commercial films,
+ * and Lucarne holds no distribution right over any of them. The posters are
+ * their distributors' artwork, kept out of the repository by .gitignore and
+ * fine on a machine that nobody else reaches — not something to publish.
+ *
+ * They are not flagged `demo`, because that flag means "invented title" and
+ * these exist. The fiche therefore says what is true: no file is attached.
+ *
+ * Ratings are from memory and approximate; runtimes are the theatrical cuts.
+ * Delete this whole block when the mock-up has served its purpose.
+ */
+const MOCKUPS: Entry[] = [
+  film({
+    id: 'asterix-empire-du-milieu',
+    title: 'Astérix & Obélix : L\'Empire du Milieu',
+    year: 2023, runtime: 111, rating: 4.6, popularity: 91, addedAt: '2026-10-18',
+    genres: ['Comédie', 'Aventure'], director: 'Guillaume Canet',
+    cast: ['Guillaume Canet', 'Gilles Lellouche', 'Vincent Cassel', 'Marion Cotillard'],
+    synopsis: "La fille de l'impératrice de Chine vient chercher du renfort dans un village gaulois. Deux Gaulois partent pour l'autre bout du monde.",
+    demo: false,
+    artwork: '/affiches/asterix-empire-du-milieu.jpg',
+  }),
+  film({
+    id: 'les-dents-de-la-mer',
+    title: 'Les Dents de la mer',
+    year: 1975, runtime: 124, rating: 8.1, popularity: 94, addedAt: '2026-10-18',
+    genres: ['Thriller', 'Aventure'], director: 'Steven Spielberg',
+    cast: ['Roy Scheider', 'Robert Shaw', 'Richard Dreyfuss'],
+    synopsis: "Une station balnéaire refuse de fermer ses plages après une première disparition. Le chef de la police finit par prendre la mer avec deux hommes et un bateau trop petit.",
+    demo: false,
+    artwork: '/affiches/les-dents-de-la-mer.jpg',
+  }),
+  film({
+    id: 'je-suis-une-legende',
+    title: 'Je suis une légende',
+    year: 2007, runtime: 101, rating: 7.2, popularity: 86, addedAt: '2026-10-17',
+    genres: ['Science-fiction', 'Horreur'], director: 'Francis Lawrence',
+    cast: ['Will Smith', 'Alice Braga', 'Charlie Tahan'],
+    synopsis: "Un virologue parcourt un Manhattan vide en plein jour et se barricade à la tombée de la nuit. Il émet chaque jour le même appel radio, sans réponse.",
+    demo: false,
+    artwork: '/affiches/je-suis-une-legende.jpg',
+  }),
+  film({
+    id: 'pulp-fiction',
+    title: 'Pulp Fiction',
+    year: 1994, runtime: 154, rating: 8.9, popularity: 97, addedAt: '2026-10-17',
+    genres: ['Policier', 'Drame'], director: 'Quentin Tarantino',
+    cast: ['John Travolta', 'Samuel L. Jackson', 'Uma Thurman', 'Bruce Willis'],
+    synopsis: "Deux tueurs à gages, la femme de leur patron et un boxeur qui devait perdre. Trois histoires de Los Angeles racontées dans le désordre.",
+    demo: false,
+    artwork: '/affiches/pulp-fiction.jpg',
+  }),
+  film({
+    id: 'titanic',
+    title: 'Titanic',
+    year: 1997, runtime: 195, rating: 7.9, popularity: 95, addedAt: '2026-10-16',
+    genres: ['Drame', 'Romance'], director: 'James Cameron',
+    cast: ['Leonardo DiCaprio', 'Kate Winslet', 'Billy Zane'],
+    synopsis: "Une passagère de première classe et un garçon monté à bord au dernier moment, sur un paquebot dont tout le monde connaît déjà la fin.",
+    demo: false,
+    artwork: '/affiches/titanic.jpg',
+  }),
+  film({
+    id: 'harry-potter-ecole-des-sorciers',
+    title: "Harry Potter à l'école des sorciers",
+    year: 2001, runtime: 152, rating: 7.7, popularity: 93, addedAt: '2026-10-16',
+    genres: ['Fantastique', 'Famille'], director: 'Chris Columbus',
+    cast: ['Daniel Radcliffe', 'Rupert Grint', 'Emma Watson', 'Alan Rickman'],
+    synopsis: "Un orphelin de onze ans apprend le jour de son anniversaire qu'il est attendu dans une école dont il n'a jamais entendu parler.",
+    demo: false,
+    artwork: '/affiches/harry-potter-ecole-des-sorciers.jpg',
+  }),
+  film({
+    id: 'joker',
+    title: 'Joker',
+    year: 2019, runtime: 122, rating: 8.3, popularity: 92, addedAt: '2026-10-15',
+    genres: ['Drame', 'Thriller'], director: 'Todd Phillips',
+    cast: ['Joaquin Phoenix', 'Robert De Niro', 'Zazie Beetz'],
+    synopsis: "Un clown pour anniversaires d'enfants, humoriste raté, traverse une ville qui coupe ses derniers services sociaux.",
+    demo: false,
+    artwork: '/affiches/joker.jpg',
+  }),
+  film({
+    id: 'rebelle',
+    title: 'Rebelle',
+    year: 2012, runtime: 93, rating: 7.1, popularity: 84, addedAt: '2026-10-15',
+    genres: ['Animation', 'Famille', 'Aventure'], director: 'Mark Andrews',
+    cast: ['Kelly Macdonald', 'Billy Connolly', 'Emma Thompson'],
+    synopsis: "Une princesse des Highlands refuse le mariage arrangé par sa mère et demande à une sorcière de la changer. La sorcière change sa mère.",
+    demo: false,
+    artwork: '/affiches/rebelle.jpg',
+  }),
+]
 
 /* ---------- invented catalogue ---------- */
 
@@ -547,7 +649,7 @@ const SERIES: Entry[] = [
   }),
 ]
 
-export const CATALOG: Entry[] = [...OPEN_MOVIES, TEST_PATTERN, ...FILMS, ...SERIES]
+export const CATALOG: Entry[] = [...OPEN_MOVIES, TEST_PATTERN, ...MOCKUPS, ...TMDB_FILMS, ...FILMS, ...SERIES]
 
 /* Spread the generated artwork evenly across the catalogue. */
 planArtwork(CATALOG.map((e) => e.id))

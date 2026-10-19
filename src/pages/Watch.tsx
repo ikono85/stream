@@ -5,10 +5,18 @@ import { RoomPanel } from '@/components/RoomPanel'
 import { Icon } from '@/components/Icon'
 import { useLibrary } from '@/hooks/libraryContext'
 import { byId, episodesOf, episodeById } from '@/data/catalog'
+import { posterArt } from '@/lib/poster'
 import { newRoomCode } from '@/sync/protocol'
 import { useWatchTogether } from '@/sync/useWatchTogether'
 import { SITE } from '@/config'
 import { NotFound } from '@/pages/NotFound'
+import type { Entry, Episode } from '@/types'
+
+/** "Saison 1, episode 3" — the way the player header already says it. */
+function episodeLabel(entry: Entry, ep: Episode): string {
+  const season = entry.seasons?.find((s) => s.episodes.some((e) => e.id === ep.id))
+  return `Saison ${season?.number ?? 1}, épisode ${ep.number}`
+}
 
 export function Watch() {
   const { id } = useParams<{ id: string }>()
@@ -33,6 +41,15 @@ export function Watch() {
       ?? episodes[0]
   }, [entry, episodeId, episodes])
 
+  /* Only an episode with a file counts as "next" — an empty one would dead-end. */
+  const nextEpisode = useMemo(() => {
+    if (!entry || !episode) return undefined
+    const index = episodes.findIndex((e) => e.id === episode.id)
+    if (index < 0) return undefined
+    const candidate = episodes[index + 1]
+    return candidate && candidate.sources.length > 0 ? candidate : undefined
+  }, [entry, episode, episodes])
+
   const sources = entry?.kind === 'film' ? entry.sources ?? [] : episode?.sources ?? []
   const subtitles = entry?.kind === 'film' ? entry.subtitles : episode?.subtitles
 
@@ -54,8 +71,7 @@ export function Watch() {
     if (!entry) return undefined
     if (entry.kind === 'film') return `${entry.year} · ${entry.genres.join(', ')}`
     if (!episode) return undefined
-    const season = entry.seasons?.find((s) => s.episodes.some((e) => e.id === episode.id))
-    return `Saison ${season?.number ?? 1}, épisode ${episode.number} — ${episode.title}`
+    return `${episodeLabel(entry, episode)} — ${episode.title}`
   }, [entry, episode])
 
   useEffect(() => {
@@ -76,18 +92,40 @@ export function Watch() {
     })
   }, [entry, episode, saveProgress])
 
+  const goToEpisode = useCallback((target: Episode) => {
+    if (!entry) return
+    const query = new URLSearchParams(params)
+    query.set('episode', target.id)
+    navigate(`/lecture/${entry.id}?${query}`, { replace: true })
+  }, [entry, navigate, params])
+
+  /* Cleared on every episode: cancelling once should not mute the whole season. */
+  const autoNext = useRef(true)
+  useEffect(() => { autoNext.current = true }, [episode?.id])
+
   const handleEnded = useCallback(() => {
     if (!entry) return
-    const index = episode ? episodes.findIndex((e) => e.id === episode.id) : -1
-    const next = index >= 0 ? episodes[index + 1] : undefined
-    if (next && next.sources.length > 0) {
-      const query = new URLSearchParams(params)
-      query.set('episode', next.id)
-      navigate(`/lecture/${entry.id}?${query}`, { replace: true })
-    } else {
-      navigate(`/titre/${entry.id}`)
+    if (nextEpisode && autoNext.current) { goToEpisode(nextEpisode); return }
+    /* Cancelled: stay on the last frame rather than yanking the viewer away.
+       Nothing to follow: the detail page is the natural place to land. */
+    if (!nextEpisode) navigate(`/titre/${entry.id}`)
+  }, [entry, nextEpisode, goToEpisode, navigate])
+
+  const upNext = useMemo(() => {
+    if (!entry || !nextEpisode) return null
+    return {
+      title: nextEpisode.title,
+      caption: episodeLabel(entry, nextEpisode),
+      /* In a room, skipping ahead alone would strand the others. */
+      skippable: !roomCode,
     }
-  }, [entry, episode, episodes, navigate, params])
+  }, [entry, nextEpisode, roomCode])
+
+  const playNext = useCallback(() => {
+    if (nextEpisode) goToEpisode(nextEpisode)
+  }, [nextEpisode, goToEpisode])
+
+  const cancelNext = useCallback(() => { autoNext.current = false }, [])
 
   const exit = useCallback(() => {
     if (entry) navigate(`/titre/${entry.id}`)
@@ -187,10 +225,14 @@ export function Watch() {
           subtitles={subtitles}
           title={entry.title}
           caption={caption}
+          artwork={entry.artwork ?? posterArt(entry.id)}
           startAt={startAt}
           onProgress={handleProgress}
           onEnded={handleEnded}
           onExit={exit}
+          upNext={upNext}
+          onUpNextPlay={playNext}
+          onUpNextDismiss={cancelNext}
           onLocalAction={room.reportLocalAction}
           onBuffering={room.reportBuffering}
           headerExtra={roomButton}

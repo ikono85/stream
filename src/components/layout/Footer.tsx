@@ -5,6 +5,10 @@ import { CATALOG } from '@/data/catalog'
 
 export function Footer() {
   const licensed = CATALOG.filter((e) => e.attribution && e.license !== 'Domaine public')
+  /* Counted rather than asserted: the catalogue's makeup changes with every
+     import, and a sentence that stops being true is worse than no sentence. */
+  const invented = CATALOG.filter((e) => e.demo).length
+  const fromTmdb = CATALOG.filter((e) => e.id.startsWith('tmdb-')).length
 
   return (
     <footer className="mt-24 border-t border-ink-700 bg-ink-950">
@@ -35,9 +39,16 @@ export function Footer() {
 
         <div className="mt-10 space-y-2 border-t border-ink-700 pt-6 text-xs leading-relaxed text-haze-400">
           <p>
-            La majeure partie de ce catalogue est inventée pour la démonstration : ces titres
+            {invented} titres de ce catalogue sont inventés pour la démonstration : ils
             n'existent pas et ne sont pas lisibles.
           </p>
+          {fromTmdb > 0 && (
+            <p>
+              {fromTmdb} fiches proviennent de The Movie Database — métadonnées et affiches
+              seulement, aucune n'est lisible ici. Ce produit utilise l'API de TMDB mais n'est
+              ni approuvé ni certifié par TMDB.
+            </p>
+          )}
           <p>
             Les films réellement lisibles sont publiés sous licence Creative Commons :{' '}
             {licensed.map((e, i) => (
