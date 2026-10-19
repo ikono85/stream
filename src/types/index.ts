@@ -1,0 +1,92 @@
+export type Kind = 'film' | 'serie'
+
+export type SortKey = 'popularite' | 'recent' | 'note' | 'alpha'
+
+/** One playable rendition. Several of these enable the quality picker. */
+export interface Source {
+  /** Absolute URL, or a path served from /public. */
+  src: string
+  /** MIME type — 'video/mp4', 'application/vnd.apple.mpegurl' for HLS. */
+  type: string
+  /** Shown in the quality menu. Omit if there is only one rendition. */
+  quality?: string
+}
+
+export interface Subtitle {
+  src: string
+  /** BCP-47 tag, e.g. 'fr'. */
+  lang: string
+  label: string
+  default?: boolean
+}
+
+export interface Episode {
+  id: string
+  number: number
+  title: string
+  synopsis: string
+  runtime: number
+  sources: Source[]
+  subtitles?: Subtitle[]
+}
+
+export interface Season {
+  number: number
+  episodes: Episode[]
+}
+
+export interface Entry {
+  id: string
+  kind: Kind
+  title: string
+  year: number
+  synopsis: string
+  genres: string[]
+  /** Out of 10. */
+  rating: number
+  cast: string[]
+  director: string
+  /** Films only, in minutes. */
+  runtime?: number
+  /** Series only. */
+  seasons?: Season[]
+  /** Films only. Empty means no source is configured yet. */
+  sources?: Source[]
+  subtitles?: Subtitle[]
+  /** Override the generated artwork with your own image URL. */
+  artwork?: string
+  backdrop?: string
+  /**
+   * Optional muted loop behind the hero. Only ever loaded on a wide screen,
+   * with motion allowed and data saving off — see Hero.
+   */
+  heroVideo?: string
+  addedAt: string
+  popularity: number
+  /** Licence of the actual video, when one is attached. Shown on the detail page. */
+  license?: string
+  /** Attribution line required by that licence. */
+  attribution?: string
+  /**
+   * True for the invented catalogue shipped with the project. Nothing marked
+   * demo describes a real film — the interface says so wherever it matters.
+   */
+  demo: boolean
+}
+
+/** Where a viewer stopped. */
+export interface Progress {
+  entryId: string
+  /** Episode id for series, undefined for films. */
+  episodeId?: string
+  seconds: number
+  duration: number
+  updatedAt: number
+}
+
+export interface Profile {
+  id: string
+  name: string
+  /** Index into the profile colour ramp. */
+  tint: number
+}
