@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { PageTransition } from '@/components/layout/PageTransition'
 import { PosterCard } from '@/components/Card'
 import { Icon } from '@/components/Icon'
-import { CATALOG, GENRES } from '@/data/catalog'
+import { CATALOG, GENRES, HAS_ANIME } from '@/data/catalog'
 import { applyFilters, filtersActive, DECADES, type Filters } from '@/lib/search'
 import type { Kind, SortKey } from '@/types'
 
@@ -12,6 +12,7 @@ const PAGE = 24
 const SORT_LABELS: Record<SortKey, string> = {
   popularite: 'Les plus regardés',
   recent: 'Ajoutés récemment',
+  annee: 'Sorties les plus récentes',
   note: 'Les mieux notés',
   alpha: 'Ordre alphabétique',
 }
@@ -50,6 +51,10 @@ export function Browse() {
     kind: (params.get('type') as Kind | null) ?? 'tout',
     genres: params.getAll('genre'),
     decade: params.get('decennie') ? Number(params.get('decennie')) : null,
+    playable: params.get('lisible') === '1',
+    origine: params.get('categorie') === 'anime' ? 'anime'
+      : params.get('categorie') === 'autre' ? 'autre'
+      : null,
     sort: (params.get('tri') as SortKey | null) ?? 'popularite',
   }), [params])
 
@@ -76,6 +81,11 @@ export function Browse() {
 
   const heading = filters.query
     ? `Résultats pour « ${filters.query} »`
+    : filters.origine === 'anime'
+      ? filters.kind === 'film' ? 'Films d\'animation japonaise'
+        : filters.kind === 'serie' ? 'Séries anime'
+        : 'Anime'
+    : filters.playable ? 'Disponibles à la lecture'
     : filters.kind === 'film' ? 'Films'
     : filters.kind === 'serie' ? 'Séries'
     : 'Tout le catalogue'
@@ -112,6 +122,47 @@ export function Browse() {
                 </button>
               ))}
             </div>
+
+            {HAS_ANIME && (
+              <button
+                type="button"
+                aria-pressed={filters.origine === 'anime'}
+                onClick={() => update((n) => {
+                  if (filters.origine === 'anime') n.delete('categorie')
+                  else n.set('categorie', 'anime')
+                })}
+                className={chip(filters.origine === 'anime')}
+              >
+                Anime
+              </button>
+            )}
+
+            {/* Arriving from the Films or Séries menu entry, which exclude
+                anime. Shown so the exclusion is visible, and removable so it
+                is not a trap. */}
+            {filters.origine === 'autre' && (
+              <button
+                type="button"
+                onClick={() => update((n) => n.delete('categorie'))}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-ink-600 px-4 text-sm text-haze-400 transition-colors hover:border-haze-400 hover:text-paper"
+              >
+                <Icon name="close" size={13} />
+                Hors anime
+              </button>
+            )}
+
+            <button
+              type="button"
+              aria-pressed={filters.playable}
+              onClick={() => update((n) => {
+                if (filters.playable) n.delete('lisible')
+                else n.set('lisible', '1')
+              })}
+              className={`${chip(filters.playable)} inline-flex items-center gap-1.5`}
+            >
+              <Icon name="play" size={13} />
+              Lisibles uniquement
+            </button>
 
             <label className="ml-auto flex items-center gap-2 text-sm text-haze-400">
               <span className="hidden sm:inline">Trier par</span>

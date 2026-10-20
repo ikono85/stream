@@ -1,15 +1,12 @@
 import { Link } from 'react-router-dom'
 import { Icon } from '@/components/Icon'
+import { Art } from '@/components/Art'
+import { StatusBadge } from '@/components/Badge'
 import { useLibrary } from '@/hooks/libraryContext'
-import { runtime, seasonCount, remaining, rating } from '@/lib/format'
+import { remaining, rating, shape } from '@/lib/format'
 import { posterArt, backdropArt } from '@/lib/poster'
 import { hasVideo } from '@/data/catalog'
 import type { Entry, Progress } from '@/types'
-
-function metaLine(entry: Entry): string {
-  if (entry.kind === 'film') return entry.runtime ? runtime(entry.runtime) : ''
-  return seasonCount(entry.seasons?.length ?? 1)
-}
 
 /** Portrait card — something you have not started. */
 export function PosterCard({ entry, eager = false, fluid = false }: {
@@ -23,11 +20,20 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
   const playable = hasVideo(entry)
 
   return (
-    <article className={`group relative ${fluid ? 'w-full' : 'shrink-0 w-36 sm:w-40 lg:w-44 xl:w-48'}`}>
-      <div className="relative overflow-hidden rounded-[var(--radius-poster)] bg-ink-800 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-soft)] group-hover:scale-[1.045] group-hover:glow-lift group-focus-within:scale-[1.045]">
+    <article className={`group relative ${fluid ? 'w-full' : 'shrink-0 snap-start w-36 sm:w-40 lg:w-44 xl:w-48'}`}>
+      {/* Warm light for what plays, cold for what does not: the lift says the
+          same thing as the badge, a beat earlier. */}
+      <div
+        className={`relative overflow-hidden rounded-[var(--radius-poster)] bg-ink-800 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-soft)] group-hover:scale-[1.045] group-focus-within:scale-[1.045] ${
+          playable
+            ? 'group-hover:glow-warm group-focus-within:glow-warm'
+            : 'group-hover:glow-lift group-focus-within:glow-lift'
+        }`}
+      >
         <div className="grain relative aspect-2/3">
-          <img
-            src={entry.artwork ?? posterArt(entry.id)}
+          <Art
+            src={entry.artwork}
+            fallback={posterArt(entry.id)}
             alt=""
             loading={eager ? 'eager' : 'lazy'}
             decoding="async"
@@ -39,7 +45,7 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
             </h3>
             <p className="mt-0.5 flex items-center gap-2 text-[0.68rem] text-haze-400 nums-tabular">
               <span>{entry.year}</span>
-              {metaLine(entry) && <span>{metaLine(entry)}</span>}
+              {shape(entry) && <span>{shape(entry)}</span>}
             </p>
           </div>
         </div>
@@ -56,6 +62,11 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
           <span className="sr-only">{entry.title}</span>
         </Link>
 
+        {/* Sits above the full-card link — among absolutely positioned
+            siblings the last one wins — and takes no pointer events, so the
+            click underneath it still reaches the link. */}
+        <StatusBadge entry={entry} className="pointer-events-none absolute left-2 top-2 z-10" />
+
         {/* Pointer-only panel: everything it offers is reachable another way,
             so touch screens — where a hover state sticks — never see it. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 translate-y-2 p-2 opacity-0 transition-[opacity,transform] duration-200 ease-[var(--ease-out-soft)] group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 max-[1024px]:hidden">
@@ -68,7 +79,7 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
 
             <p className="mt-1 flex items-center gap-2 text-[0.66rem] text-haze-400 nums-tabular">
               <span>{entry.year}</span>
-              {metaLine(entry) && <span>{metaLine(entry)}</span>}
+              {shape(entry) && <span>{shape(entry)}</span>}
               {entry.rating > 0 && <span className="text-lamp-500">{rating(entry.rating)}</span>}
             </p>
 
@@ -122,11 +133,13 @@ export function ResumeCard({ entry, progress }: { entry: Entry; progress: Progre
     : `/lecture/${entry.id}`
 
   return (
-    <article className="group relative shrink-0 w-64 sm:w-72 lg:w-80">
-      <div className="relative overflow-hidden rounded-[var(--radius-poster)] bg-ink-800 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-soft)] group-hover:scale-[1.03] group-hover:glow-lift group-focus-within:scale-[1.03]">
+    <article className="group relative shrink-0 snap-start w-64 sm:w-72 lg:w-80">
+      {/* Something already started is something that plays: always warm. */}
+      <div className="relative overflow-hidden rounded-[var(--radius-poster)] bg-ink-800 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-soft)] group-hover:scale-[1.03] group-hover:glow-warm group-focus-within:scale-[1.03] group-focus-within:glow-warm">
         <div className="grain relative aspect-video">
-          <img
-            src={entry.backdrop ?? backdropArt(entry.id)}
+          <Art
+            src={entry.backdrop}
+            fallback={backdropArt(entry.id)}
             alt=""
             loading="lazy"
             decoding="async"
@@ -181,7 +194,7 @@ export function ResumeCard({ entry, progress }: { entry: Entry; progress: Progre
 
 export function PosterSkeleton({ fluid = false }: { fluid?: boolean }) {
   return (
-    <div className={fluid ? 'w-full' : 'shrink-0 w-36 sm:w-40 lg:w-44 xl:w-48'}>
+    <div className={fluid ? 'w-full' : 'shrink-0 snap-start w-36 sm:w-40 lg:w-44 xl:w-48'}>
       <div className="skeleton aspect-2/3 rounded-[var(--radius-poster)]" />
     </div>
   )
@@ -189,7 +202,7 @@ export function PosterSkeleton({ fluid = false }: { fluid?: boolean }) {
 
 export function ResumeSkeleton() {
   return (
-    <div className="shrink-0 w-64 sm:w-72 lg:w-80">
+    <div className="shrink-0 snap-start w-64 sm:w-72 lg:w-80">
       <div className="skeleton aspect-video rounded-t-[var(--radius-poster)]" />
       <div className="skeleton mt-[3px] h-[72px] rounded-b-[var(--radius-poster)]" />
     </div>

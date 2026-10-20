@@ -9,6 +9,7 @@ export function Footer() {
      import, and a sentence that stops being true is worse than no sentence. */
   const invented = CATALOG.filter((e) => e.demo).length
   const fromTmdb = CATALOG.filter((e) => e.id.startsWith('tmdb-')).length
+  const fromMal = CATALOG.filter((e) => e.id.startsWith('mal-')).length
 
   return (
     <footer className="mt-24 border-t border-ink-700 bg-ink-950">
@@ -47,6 +48,13 @@ export function Footer() {
               {fromTmdb} fiches proviennent de The Movie Database — métadonnées et affiches
               seulement, aucune n'est lisible ici. Ce produit utilise l'API de TMDB mais n'est
               ni approuvé ni certifié par TMDB.
+            </p>
+          )}
+          {fromMal > 0 && (
+            <p>
+              {fromMal} fiches d'anime proviennent de MyAnimeList — métadonnées et affiches
+              seulement, aucune n'est lisible ici, et leurs synopsis sont en anglais faute de
+              version française à la source. MyAnimeList n'approuve ni ne certifie ce projet.
             </p>
           )}
           <p>

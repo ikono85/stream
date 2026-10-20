@@ -6,11 +6,17 @@ import { Mark } from '@/components/layout/Mark'
 import { SearchOverlay } from '@/components/SearchOverlay'
 import { useLibrary } from '@/hooks/libraryContext'
 import { SITE, PROFILE_TINTS } from '@/config'
+import { HAS_ANIME } from '@/data/catalog'
 
+/* The anime entry appears once an anime import has run, and not before: a
+   menu item leading to an empty catalogue is worse than no menu item. */
 const LINKS = [
   { to: '/', label: 'Accueil', end: true },
-  { to: '/catalogue?type=film', label: 'Films', end: false },
-  { to: '/catalogue?type=serie', label: 'Séries', end: false },
+  /* Films and Séries exclude anime once there are any: an anime series is a
+     series, and two hundred of them would be all one ever saw here. */
+  { to: HAS_ANIME ? '/catalogue?type=film&categorie=autre' : '/catalogue?type=film', label: 'Films', end: false },
+  { to: HAS_ANIME ? '/catalogue?type=serie&categorie=autre' : '/catalogue?type=serie', label: 'Séries', end: false },
+  ...(HAS_ANIME ? [{ to: '/catalogue?categorie=anime', label: 'Anime', end: false }] : []),
   { to: '/ma-liste', label: 'Ma liste', end: true },
 ]
 
@@ -65,10 +71,16 @@ export function Navbar() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const activeIndex = LINKS.findIndex((l) =>
-    l.end ? location.pathname === l.to.split('?')[0] && !location.search
-      : location.pathname === '/catalogue' && location.search.includes(l.to.split('=')[1] ?? ''),
-  )
+  /* A link is lit when the page matches and every parameter it carries is
+     present with the same value. Adding a genre or a decade on top therefore
+     keeps the entry lit, while switching to another one puts it out. */
+  const current = new URLSearchParams(location.search)
+  const activeIndex = LINKS.findIndex((l) => {
+    const [path, query] = l.to.split('?')
+    if (location.pathname !== path) return false
+    if (l.end) return !location.search
+    return [...new URLSearchParams(query ?? '')].every(([k, v]) => current.get(k) === v)
+  })
 
   return (
     <>
