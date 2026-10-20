@@ -54,6 +54,42 @@ ne leur est associé. L'interface le signale sur chaque fiche concernée.
 
 ---
 
+## Trouver quelque chose à regarder
+
+L'accueil s'ouvre sur un **hero rotatif** : cinq titres se succèdent toutes
+les neuf secondes, en commençant par quelque chose qui se lit vraiment. Il
+s'arrête dès que la souris s'y pose, que le clavier y entre, que l'onglet
+passe au second plan, ou si le système demande de réduire les animations.
+
+Dessous, les rangées : ce qui est lisible, les recommandations, les
+tendances, les sorties récentes, les films, les séries, puis une rangée par
+genre — les plus fournis d'abord, les suivantes apparaissant au défilement
+plutôt que toutes d'un coup.
+
+Au coin des affiches, un **badge** dit ce qu'on a sous les yeux : « Lisible »
+pour ce qui a une source, « Démo » pour le catalogue inventé, rien pour une
+fiche réelle sans fichier. Le catalogue a le filtre correspondant,
+**Lisibles uniquement**, qui se combine aux genres et aux décennies, et qui
+s'écrit `?lisible=1` dans l'URL.
+
+Une catégorie **Anime** existe à côté de Films et de Séries, mais elle
+n'apparaît que lorsqu'il y a quelque chose dedans. Elle se nourrit de
+`src/data/anime.ts`, que remplit `npm run import:mal` — voir plus bas. Tant
+que le fichier est vide, le menu, la rangée d'accueil et le filtre restent
+invisibles.
+
+L'origine n'est volontairement pas un troisième type à côté de « film » et
+« série » : un anime *est* l'un ou l'autre, et en faire un type aurait produit
+des titres sans durée et sans saisons. C'est un axe séparé, ce qui permet de
+croiser les deux — `?categorie=anime&type=serie` donnera les séries anime.
+
+Tout nom crédité mène à une **page personne** — `/personne/:slug` — qui
+rassemble ce que cette personne a réalisé et ce dans quoi elle est au
+générique, avec le rôle sous chaque affiche. La page ne liste que ce que ce
+catalogue contient : ce n'est pas une filmographie.
+
+---
+
 ## Brancher votre bibliothèque
 
 Tout le catalogue tient dans `src/data/catalog.ts`. Remplacez son contenu par le
@@ -193,6 +229,11 @@ Comptez plusieurs minutes à plusieurs heures de calcul par film.
 
 ## Importer un catalogue depuis TMDB
 
+Toutes les options s'écrivent `--nom` ou `--nom=valeur`. Le script **refuse**
+ce qu'il ne reconnaît pas plutôt que de l'ignorer : une option mal tapée
+arrête la commande au lieu de produire un import silencieusement différent de
+celui demandé.
+
 Pour remplir la grille avec de vrais titres — vraies affiches, vrais
 génériques, vrais synopsis — sans rien saisir à la main :
 
@@ -218,14 +259,101 @@ npm run import:tmdb -- --key=... --pages=10 --list=top_rated --lang=en-US
 fichier, et le navigateur ne la voit jamais. Ne déplacez pas ces appels dans
 l'application : une clé dans une page web est une clé publique.
 
-**TMDB ne fournit aucune vidéo.** L'import apporte les métadonnées et les
-affiches ; chaque titre arrive sans source, et sa fiche le dit. C'est de quoi
+L'import rapporte aussi le **logo du titre** quand TMDB en a un : le
+lettrage propre au film, sur fond transparent, que le hero affiche à la place
+du titre composé. Quand il n'y en a pas, le titre est simplement typographié.
+
+La liste demandée bouge pendant qu'on la parcourt, si bien qu'un même film
+peut arriver sur deux pages. Le script écarte les doublons avant d'aller
+chercher les détails, et le catalogue en écarte une seconde fois à la
+construction — un fichier généré avant cette version reste donc propre.
+
+**TMDB ne fournit aucune vidéo.** L'import apporte les métadonnées, les
+affiches et les logos ; chaque titre arrive sans source, et sa fiche le dit. C'est de quoi
 éprouver la grille, les filtres et la recherche sur une vraie matière, pas un
 catalogue regardable.
+
+### Des séries
+
+Le script importe des films par défaut. Avec `--series`, il va chercher des
+séries, dans un fichier à part pour que les deux imports ne s'effacent pas :
+
+```bash
+npm run import:tmdb -- --key=VOTRE_CLE --series --pages=3 \
+  --export=TMDB_SERIES --out=src/data/tmdb.series.ts
+```
+
+Une série coûte plus cher qu'un film : une requête pour elle, puis une par
+saison pour les épisodes. En échange les épisodes arrivent avec leurs vrais
+titres **et** leurs synopsis en français, ce qu'aucune autre source de ce
+projet ne donne. `--saisons=false` saute les épisodes si seules les fiches
+vous intéressent, `--saisons-max` plafonne les séries fleuves.
+
+`--sans-genres` écarte des genres par identifiant TMDB. `--sans-genres=16`
+retire l'animation, ce qui est utile si vos anime viennent déjà de
+MyAnimeList : sans cela quelques-uns reviendront ici sous leur titre
+français, et le même titre occupera deux étagères sous deux noms.
+
+À la fin, l'import annonce le poids ajouté au paquet JavaScript. Le catalogue
+étant compilé dans le code, c'est ce que chaque visiteur télécharge avant le
+premier affichage : comptez 0,65 ko compressé par titre et 27 octets par
+épisode, et surveillez le total autour de six cents titres.
+
+---
 
 Si vous gardez cet import, TMDB demande que vous le mentionniez. Une ligne
 dans le pied de page suffit : « Ce produit utilise l'API de TMDB mais n'est ni
 approuvé ni certifié par TMDB. »
+
+---
+
+## Importer des anime depuis MyAnimeList
+
+TMDB distingue mal l'animation japonaise du reste. MyAnimeList ne fait que
+ça, et son API officielle alimente la catégorie Anime :
+
+```bash
+npm run import:mal -- --id=VOTRE_CLIENT_ID
+```
+
+L'identifiant client s'obtient gratuitement : connectez-vous sur
+myanimelist.net, puis Paramètres du compte → onglet API → **Create ID**. Une
+fois l'application créée, **Edit** affiche le Client ID. **Seul le Client ID
+est nécessaire** : les données publiques d'anime passent par un simple
+en-tête `X-MAL-CLIENT-ID`, sans OAuth. Le Client Secret ne sert pas ici.
+Comme la clé TMDB, il ne quitte pas votre machine.
+
+```bash
+npm run import:mal -- --id=... --pages=4 --classement=tv
+```
+
+`--pages` compte par centaine de titres — **une seule requête pour cent
+fiches**, parce que l'API rend les enregistrements entiers quand on les lui
+demande. Deux cents anime coûtent deux appels, là où une API REST ordinaire
+en demanderait trois cents. `--classement` accepte `bypopularity` (par
+défaut), `all`, `airing`, `upcoming`, `favorite`, et les types `tv`,
+`movie`, `ova`, `special`.
+
+Ce que cette source **n'a pas**, et ce que le catalogue en fait :
+
+- **Aucune liste d'épisodes.** L'API v2 n'en expose pas. Une série arrive donc
+  avec son **nombre** d'épisodes et aucun épisode : la carte affiche « 1139
+  épisodes » plutôt qu'un « 1 saison » que rien ne soutient, et la fiche
+  n'ouvre pas de section Épisodes. Inventer mille lignes d'« Épisode 417 »
+  aurait été pire que l'aveu.
+- **Aucune image panoramique, aucune bande-annonce, aucun générique.** Les
+  affiches générées prennent le relais des fonds ; le reste est absent.
+- **Aucun français.** Les synopsis sont en anglais, et le pied de page le dit.
+- **Pas de réalisateur**, mais le **studio**, qui apparaît sur la fiche.
+
+Les genres sont traduits à la source : la table de correspondance vit dans le
+script et sert aussi de liste d'autorisation. MyAnimeList range ses thèmes et
+ses catégories démographiques parmi les genres — School, Shounen, Time
+Travel, quatre-vingts libellés — et un genre sans orthographe française dans
+la table n'entre tout simplement pas. Mieux vaut un vocabulaire court et sûr
+qu'un vocabulaire long à moitié traduit.
+
+Le contenu adulte est écarté à la source.
 
 ---
 
@@ -243,6 +371,13 @@ Pour utiliser vos propres images, ajoutez `artwork` (portrait 2:3) et
 artwork: '/affiches/noel-2019.jpg',
 backdrop: '/affiches/noel-2019-large.jpg',
 ```
+
+Vous pouvez aussi donner `logo` — le lettrage du titre sur fond transparent,
+affiché par le hero à la place du texte.
+
+**Une image manquante ne casse rien.** Si le fichier n'est pas là, ou si
+l'hôte distant refuse, l'affiche générée reprend sa place sans que la page
+montre l'icône d'image cassée du navigateur. C'est `src/components/Art.tsx`.
 
 L'entrée du hero peut aussi recevoir `heroVideo`, une boucle muette en fond. Elle
 n'est chargée que sur grand écran, si le système n'a pas demandé de réduire les
@@ -488,8 +623,14 @@ src/
   config.ts              Nom du site et couleurs de profil
   types/                 Les types partagés
   data/catalog.ts        Le catalogue — c'est le fichier à remplacer
+  data/people.ts         Index des personnes, dérivé du catalogue
+  data/tmdb.pinned.ts      Films épinglés un par un (vide par défaut)
+  data/tmdb.series.ts      Séries importées (vide par défaut)
+  data/anime.ts            La catégorie Anime, remplie par import:mal
   lib/
     poster.ts            Génération des affiches
+    genres.ts            Orthographe unique pour un même genre
+    playable.ts          Ce qui a une source, et ce qui n'en a pas
     storage.ts           Persistance (interface + implémentation localStorage)
     search.ts            Filtres, tri, suggestions
     recommend.ts         Recommandations d'après la liste et l'historique
@@ -498,12 +639,15 @@ src/
     libraryContext.ts    Contexte et hook useLibrary
     library.tsx          Le fournisseur
   components/            Cartes, carrousel, hero, recherche, navigation
+    Art.tsx              Image qui retombe sur l'affiche générée
+    Badge.tsx            « Lisible » / « Démo » au coin des affiches
   sync/
     protocol.ts          Messages échangés avec le relais
     useWatchTogether.ts  Salle partagée : dérive, pause sur chargement, chat
   player/                Lecteur vidéo, plein écran, image dans l'image,
                          commandes du système
-  pages/                 Accueil, catalogue, fiche, ma liste, lecture, 404
+  pages/                 Accueil, catalogue, fiche, personne, ma liste,
+                         lecture, 404
 server/
   sync.mjs               Le relais WebSocket des salles partagées
   index.mjs              Serveur de production (site + relais)

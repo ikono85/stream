@@ -1,3 +1,5 @@
+import type { Entry } from '@/types'
+
 /** 107 → "1 h 47". Minutes under an hour stay as "47 min". */
 export function runtime(minutes: number): string {
   if (!minutes) return ''
@@ -31,6 +33,23 @@ export function remaining(seconds: number, duration: number): string {
 
 export function seasonCount(n: number): string {
   return n === 1 ? '1 saison' : `${n} saisons`
+}
+
+export function episodeCount(n: number): string {
+  return n === 1 ? '1 épisode' : `${n} épisodes`
+}
+
+/**
+ * The one line that says what shape a title has: a running time for a film,
+ * a count of seasons for a series that carries them, a count of episodes for
+ * one that only knows how many there are. Empty when nothing is known, which
+ * reads better than a confident "1 saison" that no data supports.
+ */
+export function shape(entry: Entry): string {
+  if (entry.kind === 'film') return entry.runtime ? runtime(entry.runtime) : ''
+  if (entry.seasons?.length) return seasonCount(entry.seasons.length)
+  if (entry.episodeCount) return episodeCount(entry.episodeCount)
+  return ''
 }
 
 const RATING = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })

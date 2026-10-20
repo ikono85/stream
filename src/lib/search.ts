@@ -1,4 +1,5 @@
 import { fold } from '@/lib/format'
+import { hasVideo } from '@/lib/playable'
 import type { Entry, Kind, SortKey } from '@/types'
 
 export interface Filters {
@@ -6,6 +7,17 @@ export interface Filters {
   kind: Kind | 'tout'
   genres: string[]
   decade: number | null
+  /** Keep only titles with a source attached. */
+  playable: boolean
+  /**
+   * 'anime' keeps only anime, 'autre' keeps everything else, null keeps all.
+   *
+   * The exclusion exists because an anime series is a series: without it, two
+   * hundred imported anime bury the dozen series that are not, and the Séries
+   * shelf stops meaning anything. The three menu entries are therefore
+   * exclusive, while the catalogue as a whole still holds everything.
+   */
+  origine: 'anime' | 'autre' | null
   sort: SortKey
 }
 
@@ -14,6 +26,8 @@ export const EMPTY_FILTERS: Filters = {
   kind: 'tout',
   genres: [],
   decade: null,
+  playable: false,
+  origine: null,
   sort: 'popularite',
 }
 
@@ -34,6 +48,7 @@ function score(entry: Entry, q: string): number {
 const SORTERS: Record<SortKey, (a: Entry, b: Entry) => number> = {
   popularite: (a, b) => b.popularity - a.popularity,
   recent: (a, b) => b.addedAt.localeCompare(a.addedAt),
+  annee: (a, b) => b.year - a.year || b.popularity - a.popularity,
   note: (a, b) => b.rating - a.rating,
   alpha: (a, b) => a.title.localeCompare(b.title, 'fr'),
 }
@@ -47,6 +62,9 @@ export function applyFilters(catalog: Entry[], filters: Filters): Entry[] {
       if (s === 0) return false
       if (filters.kind !== 'tout' && entry.kind !== filters.kind) return false
       if (filters.genres.length && !filters.genres.some((g) => entry.genres.includes(g))) return false
+      if (filters.playable && !hasVideo(entry)) return false
+      if (filters.origine === 'anime' && entry.origine !== 'anime') return false
+      if (filters.origine === 'autre' && entry.origine === 'anime') return false
       if (filters.decade !== null) {
         const d = Math.floor(entry.year / 10) * 10
         if (d !== filters.decade) return false
@@ -76,5 +94,5 @@ export function suggest(catalog: Entry[], query: string, limit = 6): Entry[] {
 export const DECADES = [2020, 2010, 2000, 1990] as const
 
 export function filtersActive(f: Filters): number {
-  return (f.kind !== 'tout' ? 1 : 0) + f.genres.length + (f.decade !== null ? 1 : 0)
+  return (f.kind !== 'tout' ? 1 : 0) + f.genres.length + (f.decade !== null ? 1 : 0) + (f.playable ? 1 : 0) + (f.origine ? 1 : 0)
 }

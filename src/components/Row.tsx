@@ -43,6 +43,11 @@ export function Row({ title, href, children }: Props) {
 
   const scrollable = !(atStart && atEnd)
 
+  /* Fade only the side that still hides something. A strip that fits, or one
+     scrolled to its end, keeps its last poster at full strength instead of
+     dimming it for no reason. */
+  const edge = !scrollable ? '' : atStart ? 'fade-end' : atEnd ? 'fade-start' : 'fade-both'
+
   return (
     <section className="group/row relative py-5">
       <div className="gutter mb-3 flex items-baseline justify-between gap-4">
@@ -64,7 +69,11 @@ export function Row({ title, href, children }: Props) {
       <div className="relative">
         <div
           ref={trackRef}
-          className="hide-scrollbar gutter flex snap-x gap-3 overflow-x-auto scroll-smooth pb-2 lg:gap-4"
+          /* snap-proximity rather than mandatory: the arrows page by most of
+             a screen, and a mandatory strip would fight them. The scroll
+             padding matches the gutter, so a snapped poster lands beside the
+             margin rather than under it. */
+          className={`hide-scrollbar gutter flex snap-x snap-proximity gap-3 overflow-x-auto scroll-smooth scroll-pl-4 pb-2 md:scroll-pl-10 lg:gap-4 xl:scroll-pl-15 ${edge}`}
         >
           {children}
         </div>

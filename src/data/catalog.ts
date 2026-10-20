@@ -1,5 +1,11 @@
 import { planArtwork } from '@/lib/poster'
+import { canonGenres } from '@/lib/genres'
+import { fold } from '@/lib/format'
+import { episodesOf, hasVideo } from '@/lib/playable'
 import { TMDB_FILMS } from '@/data/tmdb.generated'
+import { TMDB_PINNED } from '@/data/tmdb.pinned'
+import { ANIME } from '@/data/anime'
+import { TMDB_SERIES } from '@/data/tmdb.series'
 import type { Entry, Episode, Season, Source, Subtitle } from '@/types'
 
 /**
@@ -649,10 +655,54 @@ const SERIES: Entry[] = [
   }),
 ]
 
-export const CATALOG: Entry[] = [...OPEN_MOVIES, TEST_PATTERN, ...MOCKUPS, ...TMDB_FILMS, ...FILMS, ...SERIES]
+/**
+ * A hand-written stand-in steps aside once the real thing is imported: same
+ * title, same year, but with its own artwork, its billed cast and its
+ * trailer. Nothing to remember to delete by hand.
+ */
+/**
+ * Loose enough to survive the difference between a title typed by hand and
+ * the same title as TMDB files it: "Astérix & Obélix" against "Astérix et
+ * Obélix", a stray colon, a different apostrophe. Accents, case, punctuation
+ * and spacing all come out; the year stays, to keep two remakes apart.
+ */
+function titleKey(title: string, year: number): string {
+  const name = fold(title).replace(/&/g, 'et').replace(/[^a-z0-9]+/g, '')
+  return `${name}|${year}`
+}
+
+const pinned = new Set(TMDB_PINNED.map((e) => titleKey(e.title, e.year)))
+const STANDINS = MOCKUPS.filter((e) => !pinned.has(titleKey(e.title, e.year)))
+
+const ALL: Entry[] = [
+  ...OPEN_MOVIES, TEST_PATTERN, ...TMDB_PINNED, ...STANDINS,
+  /* Marked here rather than at the source: what makes these anime is the
+     shelf they arrived on, whichever API ends up filling it. First in the
+     list, so that a title present twice keeps the copy that knows. */
+  ...ANIME.map((e): Entry => ({ ...e, origine: 'anime' })),
+  ...TMDB_FILMS, ...TMDB_SERIES, ...FILMS, ...SERIES,
+]
+
+/**
+ * Genre names arrive in two spellings — see lib/genres. Settling them here,
+ * once, means every row, filter and chip downstream reads one vocabulary.
+ */
+export const CATALOG: Entry[] = ALL
+  .filter((entry, i) => ALL.findIndex((other) => other.id === entry.id) === i)
+  .map((entry) => {
+    const genres = canonGenres(entry.genres)
+    const same = genres.length === entry.genres.length && genres.every((g, i) => g === entry.genres[i])
+    return same ? entry : { ...entry, genres }
+  })
+
+/** The playable helpers live in lib/playable; re-exported for convenience. */
+export { episodesOf, hasVideo }
 
 /* Spread the generated artwork evenly across the catalogue. */
 planArtwork(CATALOG.map((e) => e.id))
+
+/** True once an anime import has run; the navigation hides the entry otherwise. */
+export const HAS_ANIME: boolean = CATALOG.some((e) => e.origine === 'anime')
 
 export const GENRES: string[] = [
   ...new Set(CATALOG.flatMap((e) => e.genres)),
@@ -666,9 +716,16 @@ export function byId(id: string): Entry | undefined {
   return CATALOG.find((e) => e.id === id)
 }
 
-/** Every episode of a series, flattened in running order. */
-export function episodesOf(entry: Entry): Episode[] {
-  return entry.seasons?.flatMap((s) => s.episodes) ?? []
+/**
+ * The rest of this film's series, in release order, and only when the
+ * catalogue actually holds more than one of them — a saga of one is just the
+ * film you are already looking at.
+ */
+export function sagaOf(entry: Entry): Entry[] {
+  const id = entry.collection?.id
+  if (!id) return []
+  const all = CATALOG.filter((e) => e.collection?.id === id)
+  return all.length > 1 ? [...all].sort((a, b) => a.year - b.year) : []
 }
 
 export function episodeById(entry: Entry, episodeId: string): Episode | undefined {
@@ -684,9 +741,4 @@ export function playableOf(entry: Entry, episodeId?: string): { sources: Source[
   const ep = (episodeId ? episodeById(entry, episodeId) : undefined) ?? eps[0]
   if (!ep) return { sources: [] }
   return { sources: ep.sources, subtitles: ep.subtitles, label: `S${entry.seasons?.find((s) => s.episodes.includes(ep))?.number ?? 1} E${ep.number} · ${ep.title}` }
-}
-
-export function hasVideo(entry: Entry): boolean {
-  if (entry.kind === 'film') return (entry.sources?.length ?? 0) > 0
-  return episodesOf(entry).some((ep) => ep.sources.length > 0)
 }

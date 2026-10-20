@@ -1,6 +1,6 @@
 export type Kind = 'film' | 'serie'
 
-export type SortKey = 'popularite' | 'recent' | 'note' | 'alpha'
+export type SortKey = 'popularite' | 'recent' | 'annee' | 'note' | 'alpha'
 
 /** One playable rendition. Several of these enable the quality picker. */
 export interface Source {
@@ -65,16 +65,41 @@ export interface Entry {
    */
   trailer?: string
   director: string
+  /** Production studio, when the source names one. Anime mostly. */
+  studio?: string
   /** Films only, in minutes. */
   runtime?: number
   /** Series only. */
   seasons?: Season[]
+  /**
+   * How many episodes a series has, when a source knows the number but not
+   * the episodes themselves. MyAnimeList is like that. Showing the count is
+   * honest; inventing a thousand rows of "Épisode 417" would not be.
+   */
+  episodeCount?: number
+  /**
+   * Where a title comes from, when the import knows it. Deliberately not a
+   * `kind`: an anime is a film or a series like any other, and making it a
+   * third kind would mean a title that is neither — with no runtime and no
+   * seasons. Origin is its own axis, and the filters treat it as one.
+   */
+  origine?: 'anime'
   /** Films only. Empty means no source is configured yet. */
   sources?: Source[]
   subtitles?: Subtitle[]
   /** Override the generated artwork with your own image URL. */
   artwork?: string
   backdrop?: string
+  /**
+   * Title treatment — the film's own lettering on transparency. Shown in the
+   * hero in place of the typeset title when a source provides one.
+   */
+  logo?: string
+  /**
+   * The series of films this one belongs to — Avengers, Harry Potter. Comes
+   * from TMDB's collection; drives the saga row on the detail page.
+   */
+  collection?: { id: number; name: string }
   /**
    * Optional muted loop behind the hero. Only ever loaded on a wide screen,
    * with motion allowed and data saving off — see Hero.

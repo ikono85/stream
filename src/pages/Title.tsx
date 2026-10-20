@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageTransition } from '@/components/layout/PageTransition'
 import { Row } from '@/components/Row'
 import { PosterCard } from '@/components/Card'
 import { Icon } from '@/components/Icon'
+import { Art } from '@/components/Art'
 import { TrailerOverlay } from '@/components/Trailer'
 import { useLibrary } from '@/hooks/libraryContext'
-import { CATALOG, byId, hasVideo, episodesOf } from '@/data/catalog'
+import { CATALOG, byId, hasVideo, episodesOf, sagaOf } from '@/data/catalog'
+import { personByName } from '@/data/people'
 import { posterArt, bannerArt } from '@/lib/poster'
-import { runtime, seasonCount, rating, clock } from '@/lib/format'
+import { runtime, rating, clock, shape } from '@/lib/format'
 import { NotFound } from '@/pages/NotFound'
 import type { Entry } from '@/types'
 
@@ -20,6 +22,36 @@ function initials(name: string): string {
     .slice(0, 2)
     .map((word) => word[0]?.toUpperCase() ?? '')
     .join('')
+}
+
+/**
+ * A credited name becomes a link only when the catalogue has a page behind
+ * it. An unknown name reads as plain text rather than as a dead end.
+ */
+function PersonLink({ name, className, children }: {
+  name: string
+  className?: string
+  children: ReactNode
+}) {
+  const record = personByName(name)
+  if (!record) return <span className={className}>{children}</span>
+  return <Link to={`/personne/${record.slug}`} className={className}>{children}</Link>
+}
+
+const nameLink = 'underline-offset-2 transition-colors hover:text-lamp-500 hover:underline'
+
+/**
+ * TMDB files a series under names like "Avengers (Collection)" or "Harry
+ * Potter - Saga". Left alone, the heading would read "La saga Harry Potter
+ * Saga", so the word is stripped before it is added back properly.
+ */
+function sagaTitle(name: string): string {
+  const clean = name
+    .replace(/\s*[([]\s*(?:collection|saga)\s*[)\]]\s*$/i, '')
+    .replace(/\s*[-–—:]?\s*(?:collection|saga)\s*$/i, '')
+    .replace(/^\s*(?:collection|saga)\s*[-–—:]?\s*/i, '')
+    .trim()
+  return `La saga ${clean || name}`
 }
 
 function similar(entry: Entry): Entry[] {
@@ -40,6 +72,7 @@ export function Title() {
   const [trailerOpen, setTrailerOpen] = useState(false)
 
   const related = useMemo(() => (entry ? similar(entry) : []), [entry])
+  const saga = useMemo(() => (entry ? sagaOf(entry) : []), [entry])
 
   if (!entry) return <NotFound />
 
@@ -52,7 +85,7 @@ export function Title() {
 
   const meta = [
     String(entry.year),
-    entry.kind === 'film' ? runtime(entry.runtime ?? 0) : seasonCount(entry.seasons?.length ?? 1),
+    shape(entry),
     entry.rating > 0 ? `${rating(entry.rating)}/10` : null,
   ].filter(Boolean) as string[]
 
@@ -64,8 +97,9 @@ export function Title() {
     <PageTransition>
       <div className="relative isolate">
         <div className="grain absolute inset-x-0 top-0 -z-10 h-[60vh] min-h-96 overflow-hidden">
-          <img
-            src={entry.backdrop ?? bannerArt(entry.id)}
+          <Art
+            src={entry.backdrop}
+            fallback={bannerArt(entry.id)}
             alt=""
             fetchPriority="high"
             className="h-full w-full object-cover"
@@ -83,8 +117,9 @@ export function Title() {
           </Link>
 
           <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:gap-12">
-            <img
-              src={entry.artwork ?? posterArt(entry.id)}
+            <Art
+              src={entry.artwork}
+              fallback={posterArt(entry.id)}
               alt={`Affiche de ${entry.title}`}
               className="aspect-2/3 w-40 shrink-0 self-start rounded-[var(--radius-poster)] object-cover glow-lift sm:w-48 lg:w-60"
             />
@@ -160,13 +195,30 @@ export function Title() {
                 {entry.director !== '—' && (
                   <div>
                     <dt className="text-haze-400">Réalisation</dt>
-                    <dd className="mt-1 text-paper">{entry.director}</dd>
+                    <dd className="mt-1 text-paper">
+                      <PersonLink name={entry.director} className={nameLink}>
+                        {entry.director}
+                      </PersonLink>
+                    </dd>
+                  </div>
+                )}
+                {entry.studio && (
+                  <div>
+                    <dt className="text-haze-400">Studio</dt>
+                    <dd className="mt-1 text-paper">{entry.studio}</dd>
                   </div>
                 )}
                 {entry.cast.length > 0 && people.length === 0 && (
                   <div>
                     <dt className="text-haze-400">Distribution</dt>
-                    <dd className="mt-1 text-paper">{entry.cast.join(', ')}</dd>
+                    <dd className="mt-1 text-paper">
+                      {entry.cast.map((name, i) => (
+                        <span key={name}>
+                          {i > 0 && ', '}
+                          <PersonLink name={name} className={nameLink}>{name}</PersonLink>
+                        </span>
+                      ))}
+                    </dd>
                   </div>
                 )}
                 {entry.license && (
@@ -187,26 +239,32 @@ export function Title() {
                   </h2>
                   <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-6">
                     {people.map((person) => (
-                      <li key={`${person.name}-${person.character ?? ''}`} className="w-20 text-center sm:w-[5.5rem]">
-                        {person.photo ? (
-                          <img
-                            src={person.photo}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            className="mx-auto h-20 w-20 rounded-full bg-ink-800 object-cover sm:h-[5.5rem] sm:w-[5.5rem]"
-                          />
-                        ) : (
-                          <span
-                            aria-hidden="true"
-                            className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-ink-600 bg-ink-900 font-wide text-base font-bold text-haze-400 sm:h-[5.5rem] sm:w-[5.5rem]"
-                          >
-                            {initials(person.name)}
-                          </span>
-                        )}
-                        <p className="mt-2 text-xs font-medium leading-tight text-paper">{person.name}</p>
+                      <li key={`${person.name}-${person.character ?? ''}`} className="w-20 sm:w-[5.5rem]">
+                        <PersonLink name={person.name} className="group block text-center">
+                          {person.photo ? (
+                            <img
+                              src={person.photo}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              className="mx-auto h-20 w-20 rounded-full bg-ink-800 object-cover ring-0 ring-lamp-500 transition-[box-shadow] group-hover:ring-2 sm:h-[5.5rem] sm:w-[5.5rem]"
+                            />
+                          ) : (
+                            <span
+                              aria-hidden="true"
+                              className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-ink-600 bg-ink-900 font-wide text-base font-bold text-haze-400 transition-colors group-hover:border-lamp-500 group-hover:text-paper sm:h-[5.5rem] sm:w-[5.5rem]"
+                            >
+                              {initials(person.name)}
+                            </span>
+                          )}
+                          <p className="mt-2 text-xs font-medium leading-tight text-paper transition-colors group-hover:text-lamp-500">
+                            {person.name}
+                          </p>
+                        </PersonLink>
                         {person.character && (
-                          <p className="mt-0.5 text-[0.68rem] leading-tight text-haze-400">{person.character}</p>
+                          <p className="mt-0.5 text-center text-[0.68rem] leading-tight text-haze-400">
+                            {person.character}
+                          </p>
                         )}
                       </li>
                     ))}
@@ -268,9 +326,11 @@ export function Title() {
                       <h3 className="font-wide font-semibold text-paper">{ep.title}</h3>
                       <span className="text-xs text-haze-400 nums-tabular">{runtime(ep.runtime)}</span>
                     </div>
-                    <p className="mt-1.5 max-w-[68ch] text-sm leading-relaxed text-haze-400">
-                      {ep.synopsis}
-                    </p>
+                    {ep.synopsis && (
+                      <p className="mt-1.5 max-w-[68ch] text-sm leading-relaxed text-haze-400">
+                        {ep.synopsis}
+                      </p>
+                    )}
                     {pct > 0 && epProgress && (
                       <div className="mt-3 flex items-center gap-3">
                         <div className="h-[3px] w-40 overflow-hidden rounded-full bg-ink-600">
@@ -308,6 +368,16 @@ export function Title() {
             <p className="mt-6 text-sm text-haze-400">Aucun épisode enregistré pour cette série.</p>
           )}
         </section>
+      )}
+
+      {saga.length > 0 && entry.collection && (
+        <div className="mx-auto mt-14 max-w-[90rem]">
+          <Row title={sagaTitle(entry.collection.name)}>
+            {saga.map((e) => (
+              <PosterCard key={e.id} entry={e} />
+            ))}
+          </Row>
+        </div>
       )}
 
       {related.length > 0 && (

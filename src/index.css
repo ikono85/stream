@@ -29,6 +29,29 @@
   --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
+/*
+ * Depth comes from light, not grey shadow.
+ *
+ * These are @utility rather than plain classes in @layer utilities, because
+ * every one of them is asked for behind a variant — hover:glow-lamp on the
+ * play button, group-hover:glow-lift on a poster. Written by hand inside a
+ * layer they are only CSS: Tailwind never sees a utility to build a variant
+ * from, so the hover rules are silently never emitted and the whole lighting
+ * idea stays invisible. @utility is what makes them composable.
+ */
+@utility glow-lamp {
+  box-shadow: 0 0 0 1px rgb(240 166 60 / 0.35), 0 8px 32px -8px rgb(240 166 60 / 0.45);
+}
+
+@utility glow-lift {
+  box-shadow: 0 18px 50px -18px rgb(4 7 15 / 0.95), 0 0 0 1px rgb(44 58 87 / 0.7);
+}
+
+/* The same lift, lit by the lamp: kept for what actually plays. */
+@utility glow-warm {
+  box-shadow: 0 18px 50px -18px rgb(240 166 60 / 0.42), 0 0 0 1px rgb(240 166 60 / 0.45);
+}
+
 @layer base {
   :root {
     color-scheme: dark;
@@ -42,6 +65,11 @@
   body {
     margin: 0;
     background-color: var(--color-ink-950);
+    /* A lift under the top of the page, and darkness gathering at the edges. */
+    background-image:
+      radial-gradient(100% 55% at 50% 0%, rgb(44 58 87 / 0.3) 0%, transparent 62%),
+      radial-gradient(145% 105% at 50% 48%, transparent 52%, rgb(0 0 0 / 0.5) 100%);
+    background-attachment: fixed;
     color: var(--color-paper);
     font-family: var(--font-sans);
     font-stretch: 100%;
@@ -85,16 +113,20 @@
   .font-narrow { font-stretch: 88%; }
   .nums-tabular { font-variant-numeric: tabular-nums; }
 
-  /* Depth comes from light, not grey shadow */
-  .glow-lamp { box-shadow: 0 0 0 1px rgb(240 166 60 / 0.35), 0 8px 32px -8px rgb(240 166 60 / 0.45); }
-  .glow-lift { box-shadow: 0 18px 50px -18px rgb(4 7 15 / 0.95), 0 0 0 1px rgb(44 58 87 / 0.7); }
-
   .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
   .hide-scrollbar::-webkit-scrollbar { display: none; }
 
-  /* Tells the eye a strip keeps going past the edge. */
+  /* Tells the eye a strip keeps going past the edge. Applied on the side
+     that still has something behind it — never on a strip already at its end,
+     where it would only dim the last poster. */
   .fade-end {
     mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 3rem), transparent 100%);
+  }
+  .fade-start {
+    mask-image: linear-gradient(to left, #000 0, #000 calc(100% - 3rem), transparent 100%);
+  }
+  .fade-both {
+    mask-image: linear-gradient(to right, transparent 0, #000 3rem, #000 calc(100% - 3rem), transparent 100%);
   }
 
   .gutter { padding-inline: 1rem; }
@@ -120,6 +152,19 @@
   @keyframes shimmer {
     from { background-position: 180% 0; }
     to   { background-position: -80% 0; }
+  }
+}
+
+/* The lens has grain too, not just the film. Wide screens only — a fixed
+   repeating layer costs more repainting than a phone should pay for. */
+@media (min-width: 1024px) {
+  body {
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E"),
+      radial-gradient(100% 55% at 50% 0%, rgb(44 58 87 / 0.3) 0%, transparent 62%),
+      radial-gradient(145% 105% at 50% 48%, transparent 52%, rgb(0 0 0 / 0.5) 100%);
+    background-repeat: repeat, no-repeat, no-repeat;
+    background-size: 160px 160px, auto, auto;
   }
 }
 
