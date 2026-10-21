@@ -1,33 +1,84 @@
+/**
+ * LE MODÈLE
+ * =========
+ * Tout vient de HeiwaStream, et les types suivent ce que l'API dit vraiment.
+ * Deux appels nourrissent une entrée :
+ *
+ *   /catalog/{famille}        titre, année, langues, qualité, identifiants
+ *   /media/{type}/{tmdb}      affiche, fond, logo, résumé, genres, note…
+ *
+ * Le second est facultatif : le proxy n'enrichit que les premières entrées
+ * d'une page. Les champs qu'il apporte sont donc tous optionnels, et
+ * l'interface sait se passer de chacun — un titre sans affiche reçoit celle
+ * que lib/poster dessine, un titre sans résumé n'affiche pas de résumé.
+ *
+ * Ce que l'API ne donne pas, et qui a donc disparu du modèle : la
+ * distribution, la réalisation, le studio, les sagas. Aucune route ne les
+ * expose ; les inventer serait mentir.
+ */
+
+/** Film ou série, le vocabulaire de l'interface. */
 export type Kind = 'film' | 'serie'
 
-export type SortKey = 'popularite' | 'recent' | 'annee' | 'note' | 'alpha'
+/** Le segment que l'API attend pour une fiche : elle ne connaît que ces deux. */
+export type MediaType = 'movie' | 'tv'
 
-/** One playable rendition. Several of these enable the quality picker. */
-export interface Source {
-  /** Absolute URL, or a path served from /public. */
-  src: string
-  /** MIME type — 'video/mp4', 'application/vnd.apple.mpegurl' for HLS. */
-  type: string
-  /** Shown in the quality menu. Omit if there is only one rendition. */
-  quality?: string
+/**
+ * Les trois rayons du catalogue. `anime` n'est pas un type à part pour l'API
+ * — c'est une série — mais `/catalog/anime` existe et ne renvoie que ceux-là.
+ */
+export type Famille = 'movie' | 'tv' | 'anime'
+
+/** Ce que l'API classe sous `kind`. */
+export type Categorie = 'movie' | 'series' | 'anime'
+
+/** Les pistes annoncées par l'API, dans son orthographe. */
+export type Langue = 'VF' | 'VFSTFR' | 'VOSTFR' | 'VO'
+
+/** Ordres acceptés par /catalog. */
+export type SortKey = 'popular' | 'added' | 'rating'
+
+/** Identifiants croisés, tels que l'API les renvoie. */
+export interface Ids {
+  tmdb: number
+  imdb?: string | null
+  tvdb?: number | null
+  mal?: number | null
+  anilist?: number | null
 }
 
-export interface Subtitle {
-  src: string
-  /** BCP-47 tag, e.g. 'fr'. */
-  lang: string
-  label: string
-  default?: boolean
+/** Une saison, vue de la fiche : ce qu'il faut pour un sélecteur. */
+export interface SeasonSummary {
+  number: number
+  episodeCount: number
+  year: number | null
+  /** Image de saison, chemin TMDB — voir lib/images. */
+  stillPath: string | null
+  name: string | null
+  recent: boolean
 }
 
+/** Le détail d'une langue pour un titre ou un épisode. */
+export interface Version {
+  language: Langue
+  quality: string | null
+  sources: number
+  qualities: Record<string, number>
+}
+
+/** Un épisode, tel que /tv/{tmdb} le décrit. */
 export interface Episode {
+  /** `tv-1399-s1e2`, construit par nous : l'API numérote, elle n'identifie pas. */
   id: string
+  season: number
   number: number
   title: string
-  synopsis: string
-  runtime: number
-  sources: Source[]
-  subtitles?: Subtitle[]
+  airDate: string | null
+  languages: Langue[]
+  quality: string | null
+  /** Nombre de liens en service. Zéro signifie « pas encore disponible ». */
+  sources: number
+  versions: Version[]
 }
 
 export interface Season {
@@ -35,93 +86,72 @@ export interface Season {
   episodes: Episode[]
 }
 
-/** A credited person, with a portrait when the source provides one. */
-export interface Person {
-  name: string
-  /** Role played, when known. */
-  character?: string
-  /** Portrait URL, same 2:3 shape as a poster. */
-  photo?: string
-}
-
+/**
+ * Un titre. `id` est de la forme `movie-603` ou `tv-1399` : l'API n'a pas
+ * d'identifiant propre, et le couple type + TMDB est ce qui désigne un titre
+ * de façon stable dans une URL comme dans « ma liste ».
+ */
 export interface Entry {
   id: string
+  type: MediaType
+  tmdb: number
   kind: Kind
+  categorie: Categorie
   title: string
   year: number
-  synopsis: string
-  genres: string[]
-  /** Out of 10. */
-  rating: number
-  cast: string[]
-  /**
-   * Billed cast with portraits and roles, when a source provides them.
-   * `cast` above remains the plain-text fallback, and the one search reads.
-   */
-  people?: Person[]
-  /**
-   * YouTube key of a trailer. Not a source: it plays in an overlay on the
-   * detail page, never in the player.
-   */
-  trailer?: string
-  director: string
-  /** Production studio, when the source names one. Anime mostly. */
-  studio?: string
-  /** Films only, in minutes. */
+  ids: Ids
+  languages: Langue[]
+  /** Meilleure définition mesurée, « 1080p », « 4K »… Null si inconnue. */
+  quality: string | null
+
+  /* ---- ce que la fiche /media ajoute, quand elle a été demandée ---- */
+
+  /** Chemins TMDB, pas des URL : lib/images les assemble. */
+  posterPath?: string | null
+  backdropPath?: string | null
+  logoPath?: string | null
+  synopsis?: string
+  tagline?: string
+  genres?: string[]
+  /** Sur 10. */
+  rating?: number
+  /** Films, en minutes. */
   runtime?: number
-  /** Series only. */
-  seasons?: Season[]
+  seasons?: SeasonSummary[]
+  /** Clé YouTube de la bande-annonce. Jamais une source de lecture. */
+  trailer?: string
   /**
-   * How many episodes a series has, when a source knows the number but not
-   * the episodes themselves. MyAnimeList is like that. Showing the count is
-   * honest; inventing a thousand rows of "Épisode 417" would not be.
+   * Le prochain épisode attendu d'une série en cours, quand l'API en connaît
+   * un. Absent pour un film et pour une série terminée.
    */
-  episodeCount?: number
-  /**
-   * Where a title comes from, when the import knows it. Deliberately not a
-   * `kind`: an anime is a film or a series like any other, and making it a
-   * third kind would mean a title that is neither — with no runtime and no
-   * seasons. Origin is its own axis, and the filters treat it as one.
-   */
-  origine?: 'anime'
-  /** Films only. Empty means no source is configured yet. */
-  sources?: Source[]
-  subtitles?: Subtitle[]
-  /** Override the generated artwork with your own image URL. */
-  artwork?: string
-  backdrop?: string
-  /**
-   * Title treatment — the film's own lettering on transparency. Shown in the
-   * hero in place of the typeset title when a source provides one.
-   */
-  logo?: string
-  /**
-   * The series of films this one belongs to — Avengers, Harry Potter. Comes
-   * from TMDB's collection; drives the saga row on the detail page.
-   */
-  collection?: { id: number; name: string }
-  /**
-   * Optional muted loop behind the hero. Only ever loaded on a wide screen,
-   * with motion allowed and data saving off — see Hero.
-   */
-  heroVideo?: string
-  addedAt: string
-  popularity: number
-  /** Licence of the actual video, when one is attached. Shown on the detail page. */
-  license?: string
-  /** Attribution line required by that licence. */
-  attribution?: string
-  /**
-   * True for the invented catalogue shipped with the project. Nothing marked
-   * demo describes a real film — the interface says so wherever it matters.
-   */
-  demo: boolean
+  nextEpisode?: { season: number; episode: number; name: string | null; airDate: string | null }
+
+  /* ---- selon la liste d'où le titre vient ---- */
+
+  /** Rang, dans le classement uniquement. */
+  rank?: number
+  /** Date d'ajout, dans les nouveautés uniquement. */
+  addedAt?: string
+  /** Saison et épisode ajoutés, dans les nouveautés d'une série. */
+  addedEpisode?: { season: number; episode: number }
 }
 
-/** Where a viewer stopped. */
+/** Une sortie attendue, pour le calendrier. */
+export interface Upcoming {
+  id: string
+  type: MediaType
+  tmdb: number
+  title: string
+  season: number
+  episode: number
+  episodeTitle: string
+  date: string
+}
+
+/** Où un spectateur s'est arrêté. */
 export interface Progress {
   entryId: string
-  /** Episode id for series, undefined for films. */
+  /** Identifiant d'épisode pour une série, absent pour un film. */
   episodeId?: string
   seconds: number
   duration: number
@@ -131,6 +161,6 @@ export interface Progress {
 export interface Profile {
   id: string
   name: string
-  /** Index into the profile colour ramp. */
+  /** Index dans la palette de teintes des profils. */
   tint: number
 }

@@ -1,10 +1,14 @@
 /**
  * Deterministic poster artwork.
  *
- * Every title gets abstract screen-print artwork derived from its id, so the
- * catalogue looks like a curated series instead of a pile of broken images.
- * Swap this out for real artwork by giving a catalogue entry `artwork` /
- * `backdrop` URLs — see README, "Remplacer les affiches".
+ * HeiwaStream fournit les affiches de la plupart des titres, par les chemins
+ * TMDB de la fiche /media — voir lib/images. Ce module dessine celles qui
+ * manquent : un titre sans affiche chez TMDB, une entrée de catalogue que le
+ * proxy n'a pas enrichie, une image que le navigateur n'a pas pu charger.
+ *
+ * L'artwork est dérivé de l'identifiant du titre, donc stable : la même
+ * affiche d'une visite à l'autre, sans rien stocker. Mieux qu'un rectangle
+ * gris, et mieux qu'une image cassée.
  */
 
 /* ---------- deterministic randomness ---------- */
@@ -232,24 +236,22 @@ const COMPOSITIONS: Draw[] = [
  */
 const WIDE_COMPOSITIONS: Draw[] = [beam, horizon, peaks, aperture, strata, split, columns]
 
-/* ---------- even spread ----------
- * Hashing alone clumps: on a 35-title catalogue one composition came up seven
- * times. Walking the catalogue in a fixed shuffled order and cycling through
- * the compositions keeps the result deterministic while guaranteeing a wall of
- * posters that does not repeat itself.
+/* ---------- le choix de la composition ----------
+ * Une version précédente répartissait les compositions en parcourant tout le
+ * catalogue d'avance, pour qu'un mur d'affiches ne se répète pas. Le
+ * catalogue est maintenant distant et paginé : il n'existe plus de liste
+ * complète à parcourir, et une page de cinquante titres ne sait rien des
+ * quarante-huit mille autres.
+ *
+ * Le choix se fait donc sur l'empreinte de l'identifiant seule. Deux
+ * conséquences : il reste stable — le même titre garde son affiche d'une
+ * visite à l'autre, et d'un appareil à l'autre — et il se regroupe un peu
+ * plus qu'avant. Sur une grille de cinquante titres tirés de douze palettes
+ * et d'une dizaine de compositions, cela ne se voit pas.
  */
 
-const plan = new Map<string, number>()
-
-export function planArtwork(ids: string[]): void {
-  plan.clear()
-  const shuffled = [...ids].sort((a, b) => hash(`${a}|order`) - hash(`${b}|order`))
-  shuffled.forEach((id, i) => plan.set(id, i))
-}
-
-function pick<T>(pool: T[], seed: string, id: string): T {
-  const slot = plan.get(id) ?? hash(`${seed}|c`)
-  return pool[slot % pool.length]!
+function pick<T>(pool: T[], seed: string, _id: string): T {
+  return pool[hash(`${seed}|c`) % pool.length]!
 }
 
 /* ---------- assembly ---------- */

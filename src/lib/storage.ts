@@ -1,4 +1,5 @@
 import type { Profile, Progress } from '@/types'
+import type { Compte } from '@/lib/compte'
 
 /**
  * PERSISTENCE
@@ -136,3 +137,116 @@ class LocalStore implements LucarneStore {
 }
 
 export const store: LucarneStore = new LocalStore()
+
+/* ---------- la même chose, mais chez nous ---------- */
+
+/**
+ * LA BIBLIOTHÈQUE D'UN COMPTE
+ * ===========================
+ * Quand on est connecté, tout passe par le serveur : la liste suit d'un
+ * appareil à l'autre, et elle n'est plus perdue en vidant son navigateur.
+ *
+ * Un compte tient lieu de profil unique — la notion de profils locaux n'a
+ * plus d'objet une fois que chacun a son compte, et les méthodes qui les
+ * géraient ne font donc rien ici.
+ *
+ * L'identifiant du compte n'est jamais envoyé : le serveur le lit dans le
+ * cookie de session. C'est ce qui garantit qu'on ne peut pas lire la liste
+ * du voisin en changeant un numéro dans une URL.
+ */
+interface Charge {
+  maListe: string[]
+  progression: Progress[]
+  recherches: string[]
+}
+
+async function appelle<T>(chemin: string, options: RequestInit = {}): Promise<T> {
+  const reponse = await fetch(`/api/bibliotheque${chemin}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  })
+  if (!reponse.ok) throw new Error(String(reponse.status))
+  return (await reponse.json()) as T
+}
+
+class StoreDistant implements LucarneStore {
+  /* Champ déclaré puis assigné : les propriétés de paramètre de
+     TypeScript ne sont pas effaçables, et ce projet compile sans
+     transformation de syntaxe. */
+  private readonly compte: Compte
+
+  constructor(compte: Compte) {
+    this.compte = compte
+  }
+
+  /** Un compte, un profil. Les autres méthodes de profil n'ont plus d'objet. */
+  async listProfiles(): Promise<Profile[]> {
+    return [{ id: this.compte.id, name: this.compte.nom, tint: teinteDe(this.compte.id) }]
+  }
+
+  async createProfile(): Promise<Profile> {
+    return { id: this.compte.id, name: this.compte.nom, tint: teinteDe(this.compte.id) }
+  }
+
+  async renameProfile(): Promise<void> {}
+  async deleteProfile(): Promise<void> {}
+
+  async getActiveProfileId(): Promise<string | null> {
+    return this.compte.id
+  }
+
+  async setActiveProfileId(): Promise<void> {}
+
+  async getMyList(): Promise<string[]> {
+    return (await appelle<Charge>('')).maListe
+  }
+
+  async setMyList(_profileId: string, entryIds: string[]): Promise<void> {
+    await appelle('/liste', { method: 'PUT', body: JSON.stringify({ ids: entryIds }) })
+  }
+
+  async getProgress(): Promise<Progress[]> {
+    return (await appelle<Charge>('')).progression
+  }
+
+  async putProgress(_profileId: string, progress: Progress): Promise<void> {
+    await appelle('/progression', { method: 'PUT', body: JSON.stringify(progress) })
+  }
+
+  async dropProgress(_profileId: string, entryId: string): Promise<void> {
+    await appelle(`/progression/${encodeURIComponent(entryId)}`, { method: 'DELETE' })
+  }
+
+  async getSearchHistory(): Promise<string[]> {
+    return (await appelle<Charge>('')).recherches
+  }
+
+  async pushSearchHistory(_profileId: string, query: string): Promise<void> {
+    const actuelles = await this.getSearchHistory()
+    const q = query.trim()
+    if (q.length < 2) return
+    await appelle('/recherches', {
+      method: 'PUT',
+      body: JSON.stringify({ recherches: [q, ...actuelles.filter((x) => x !== q)].slice(0, 8) }),
+    })
+  }
+
+  async clearSearchHistory(): Promise<void> {
+    await appelle('/recherches', { method: 'PUT', body: JSON.stringify({ recherches: [] }) })
+  }
+}
+
+/** Une teinte stable, dérivée de l'identifiant plutôt que d'un compteur. */
+function teinteDe(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 997
+  return h % 6
+}
+
+/**
+ * Le magasin à utiliser : celui du serveur quand on est connecté, celui du
+ * navigateur sinon. Aucun composant ne sait lequel il manipule.
+ */
+export function magasinPour(compte: Compte | null): LucarneStore {
+  return compte ? new StoreDistant(compte) : store
+}

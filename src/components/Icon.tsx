@@ -4,7 +4,7 @@ type Name =
   | 'volume' | 'mute' | 'expand' | 'collapse'
   | 'quality' | 'subtitles' | 'info' | 'menu' | 'user'
   | 'replay' | 'back10' | 'forward10' | 'trash' | 'warning'
-  | 'together' | 'send' | 'link' | 'pip' | 'next'
+  | 'together' | 'send' | 'link' | 'pip' | 'next' | 'calendar'
 
 /** Filled glyphs — everything else is stroked. */
 const FILLED = new Set<Name>(['play'])
@@ -38,6 +38,7 @@ const PATHS: Record<Name, string> = {
   send: 'M4.5 12 20 5l-7 15-2.2-6.3L4.5 12Z',
   link: 'M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.4 1.4M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.4-1.4',
   pip: 'M3.5 5.5h17a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1ZM12 12.5h7v4.5h-7Z',
+  calendar: 'M4.5 6.5h15a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1ZM8 4v5M16 4v5M3.5 11.5h17',
   next: 'M7 6.2v11.6a.7.7 0 0 0 1.07.6l9.1-5.8a.7.7 0 0 0 0-1.2L8.07 5.6A.7.7 0 0 0 7 6.2ZM19.8 6v12',
 }
 

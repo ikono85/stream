@@ -8,7 +8,10 @@ import { Home } from '@/pages/Home'
 const Browse = lazy(() => import('@/pages/Browse').then((m) => ({ default: m.Browse })))
 const Title = lazy(() => import('@/pages/Title').then((m) => ({ default: m.Title })))
 const MyList = lazy(() => import('@/pages/MyList').then((m) => ({ default: m.MyList })))
-const Person = lazy(() => import('@/pages/Person').then((m) => ({ default: m.Person })))
+const Calendrier = lazy(() => import('@/pages/Calendrier').then((m) => ({ default: m.Calendrier })))
+const Connexion = lazy(() => import('@/pages/Compte').then((m) => ({ default: m.Connexion })))
+const Inscription = lazy(() => import('@/pages/Compte').then((m) => ({ default: m.Inscription })))
+const MonCompte = lazy(() => import('@/pages/Compte').then((m) => ({ default: m.MonCompte })))
 const Watch = lazy(() => import('@/pages/Watch').then((m) => ({ default: m.Watch })))
 const NotFound = lazy(() => import('@/pages/NotFound').then((m) => ({ default: m.NotFound })))
 
@@ -47,7 +50,10 @@ export function App() {
             <Route path="/catalogue" element={<Browse />} />
             <Route path="/titre/:id" element={<Title />} />
             <Route path="/ma-liste" element={<MyList />} />
-            <Route path="/personne/:slug" element={<Person />} />
+            <Route path="/calendrier" element={<Calendrier />} />
+            <Route path="/connexion" element={<Connexion />} />
+            <Route path="/inscription" element={<Inscription />} />
+            <Route path="/mon-compte" element={<MonCompte />} />
             <Route path="/lecture/:id" element={<Watch />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

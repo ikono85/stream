@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/icone.svg" />
+    <title>Administration</title>
+  </head>
+  <body>
+    <!--
+      Point d'entrée distinct du site public. Le bundle produit ici n'est
+      référencé par aucune page du site : un visiteur ne le télécharge jamais,
+      et le serveur refuse de le servir sans session — voir server/index.mjs.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/admin/main.tsx"></script>
+  </body>
+</html>

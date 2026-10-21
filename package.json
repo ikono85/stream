@@ -10,12 +10,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "lint": "oxlint src",
     "start": "node server/index.mjs",
-    "import:tmdb": "node scripts/import-tmdb.mjs",
-    "import:mal": "node scripts/import-mal.mjs"
+    "admin:motdepasse": "node scripts/admin-motdepasse.mjs"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
-    "hls.js": "^1.7.3",
     "motion": "^14.4.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -35,5 +33,5 @@
     "typescript": "~7.0.2",
     "vite": "^8.3.4"
   },
-  "description": "Interface de streaming pour une biblioth\u00e8que vid\u00e9o priv\u00e9e"
+  "description": "Interface de streaming branch\u00e9e sur le catalogue HeiwaStream"
 }

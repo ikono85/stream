@@ -1,35 +1,92 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Icon } from '@/components/Icon'
 import { useLibrary } from '@/hooks/libraryContext'
-import { CATALOG } from '@/data/catalog'
-import { suggest } from '@/lib/search'
+import { recherche, type ErreurHeiwa } from '@/lib/heiwa'
+import { suit } from '@/lib/suivi'
 import { posterArt } from '@/lib/poster'
-import { runtime, seasonCount } from '@/lib/format'
+import { image, TAILLES } from '@/lib/images'
+import { shape, langues } from '@/lib/format'
+import type { Entry } from '@/types'
 
 interface Props {
   open: boolean
   onClose: () => void
 }
 
+/**
+ * Chaque frappe est une requête à l'API, qui limite les rafales : on attend
+ * que la frappe se repose. Trois cents millisecondes est le palier au-delà
+ * duquel l'attente se remarque, et en dessous duquel on tape encore.
+ */
+const REPOS_MS = 300
+
+/** L'API refuse en dessous de deux caractères — autant ne pas l'appeler. */
+const MINIMUM = 2
+
 export function SearchOverlay({ open, onClose }: Props) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
+  const [results, setResults] = useState<Entry[]>([])
+  const [cherche, setCherche] = useState(false)
+  const [erreur, setErreur] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const reduced = useReducedMotion()
   const { searchHistory, pushSearch, clearSearch } = useLibrary()
 
-  const results = useMemo(() => suggest(CATALOG, query, 6), [query])
-
   useEffect(() => {
     if (!open) return
     setQuery('')
+    setResults([])
+    setErreur(null)
     setActive(0)
     const id = requestAnimationFrame(() => inputRef.current?.focus())
     return () => cancelAnimationFrame(id)
   }, [open])
+
+  /* La recherche elle-même : annulée à chaque frappe, relancée au repos. */
+  useEffect(() => {
+    const terme = query.trim()
+    if (!open || terme.length < MINIMUM) {
+      setResults([])
+      setCherche(false)
+      setErreur(null)
+      return
+    }
+
+    const controleur = new AbortController()
+    setCherche(true)
+
+    const minuteur = window.setTimeout(() => {
+      /* `rich` ramène les affiches : six vignettes valent bien six fiches,
+         et le proxy les garde en cache pour la fiche qui suivra. */
+      recherche(terme, { limit: 6, rich: 6 }, controleur.signal).then(
+        (trouves) => {
+          setResults(trouves)
+          setActive(0)
+          setCherche(false)
+          setErreur(null)
+          /* Consigné après coup, une fois la frappe reposée : ce qui
+             intéresse, c'est le mot cherché, pas chaque lettre tapée. Et
+             savoir ce qu'on cherche sans trouver vaut de l'or. */
+          suit('recherche', { terme, ...(trouves.length === 0 ? { id: 'sans-resultat' } : {}) })
+        },
+        (e: unknown) => {
+          if (e instanceof DOMException && e.name === 'AbortError') return
+          setResults([])
+          setCherche(false)
+          setErreur((e as ErreurHeiwa)?.explication ?? "La recherche n'a pas abouti.")
+        },
+      )
+    }, REPOS_MS)
+
+    return () => {
+      controleur.abort()
+      window.clearTimeout(minuteur)
+    }
+  }, [query, open])
 
   /* Lock the page behind the overlay. */
   useEffect(() => {
@@ -62,6 +119,8 @@ export function SearchOverlay({ open, onClose }: Props) {
       else if (query.trim()) go(`/catalogue?q=${encodeURIComponent(query.trim())}`, query)
     }
   }
+
+  const terme = query.trim()
 
   return (
     <AnimatePresence>
@@ -98,11 +157,17 @@ export function SearchOverlay({ open, onClose }: Props) {
                 onChange={(e) => { setQuery(e.target.value); setActive(0) }}
                 onKeyDown={onKeyDown}
                 type="search"
-                placeholder="Titre, personne, genre"
+                placeholder="Titre d'un film, d'une série, d'un animé"
                 aria-label="Rechercher dans le catalogue"
                 autoComplete="off"
                 className="h-14 w-full bg-transparent text-base text-paper outline-none placeholder:text-haze-400/70"
               />
+              {cherche && (
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-ink-600 border-t-lamp-500"
+                />
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -114,9 +179,13 @@ export function SearchOverlay({ open, onClose }: Props) {
             </div>
 
             <div className="max-h-[min(26rem,60vh)] overflow-y-auto">
-              {query.length > 0 && results.length === 0 && (
+              {erreur && (
+                <p className="px-4 py-8 text-center text-sm text-haze-400">{erreur}</p>
+              )}
+
+              {!erreur && terme.length >= MINIMUM && !cherche && results.length === 0 && (
                 <p className="px-4 py-8 text-center text-sm text-haze-400">
-                  Rien ne correspond à « {query} ». Essayez un titre, un genre ou un nom.
+                  Rien ne correspond à « {terme} » dans le catalogue.
                 </p>
               )}
 
@@ -135,7 +204,7 @@ export function SearchOverlay({ open, onClose }: Props) {
                         }`}
                       >
                         <img
-                          src={entry.artwork ?? posterArt(entry.id)}
+                          src={image(entry.posterPath, TAILLES.affiche) ?? posterArt(entry.id)}
                           alt=""
                           loading="lazy"
                           className="h-14 w-[2.35rem] shrink-0 rounded-sm object-cover"
@@ -145,26 +214,25 @@ export function SearchOverlay({ open, onClose }: Props) {
                             {entry.title}
                           </span>
                           <span className="mt-0.5 flex items-center gap-2.5 text-xs text-haze-400 nums-tabular">
-                            <span>{entry.year}</span>
-                            <span>
-                              {entry.kind === 'film'
-                                ? runtime(entry.runtime ?? 0)
-                                : seasonCount(entry.seasons?.length ?? 1)}
-                            </span>
-                            <span className="truncate">{entry.genres[0]}</span>
+                            {entry.year > 0 && <span>{entry.year}</span>}
+                            <span>{entry.kind === 'film' ? 'Film' : entry.categorie === 'anime' ? 'Animé' : 'Série'}</span>
+                            {shape(entry) && <span>{shape(entry)}</span>}
+                            {entry.languages.length > 0 && (
+                              <span className="truncate">{langues(entry.languages)}</span>
+                            )}
                           </span>
                         </span>
                       </button>
                     </li>
                   ))}
-                  {query.trim() && (
+                  {terme && (
                     <li>
                       <button
                         type="button"
-                        onClick={() => go(`/catalogue?q=${encodeURIComponent(query.trim())}`, query)}
+                        onClick={() => go(`/catalogue?q=${encodeURIComponent(terme)}`, query)}
                         className="mt-1 w-full rounded-lg p-3 text-left text-sm text-lamp-500 transition-colors hover:bg-ink-800"
                       >
-                        Voir tous les résultats pour « {query.trim()} »
+                        Voir tous les résultats pour « {terme} »
                       </button>
                     </li>
                   )}
@@ -202,7 +270,7 @@ export function SearchOverlay({ open, onClose }: Props) {
 
               {query.length === 0 && searchHistory.length === 0 && (
                 <p className="px-4 py-8 text-center text-sm text-haze-400">
-                  Cherchez par titre, par genre, ou par le nom de quelqu'un au générique.
+                  Cherchez un titre. Le catalogue en compte plus de quarante mille.
                 </p>
               )}
             </div>

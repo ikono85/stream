@@ -5,18 +5,18 @@ import { Icon } from '@/components/Icon'
 import { Mark } from '@/components/layout/Mark'
 import { SearchOverlay } from '@/components/SearchOverlay'
 import { useLibrary } from '@/hooks/libraryContext'
+import { deconnexion } from '@/lib/compte'
 import { SITE, PROFILE_TINTS } from '@/config'
-import { HAS_ANIME } from '@/data/catalog'
 
-/* The anime entry appears once an anime import has run, and not before: a
-   menu item leading to an empty catalogue is worse than no menu item. */
+/* Les trois rayons que HeiwaStream distingue — /catalog/movie, /catalog/tv
+   et /catalog/anime — plus ce qui est à nous. Un animé est une série pour
+   l'API, mais il a son propre rayon, qui ne mélange pas les deux. */
 const LINKS = [
   { to: '/', label: 'Accueil', end: true },
-  /* Films and Séries exclude anime once there are any: an anime series is a
-     series, and two hundred of them would be all one ever saw here. */
-  { to: HAS_ANIME ? '/catalogue?type=film&categorie=autre' : '/catalogue?type=film', label: 'Films', end: false },
-  { to: HAS_ANIME ? '/catalogue?type=serie&categorie=autre' : '/catalogue?type=serie', label: 'Séries', end: false },
-  ...(HAS_ANIME ? [{ to: '/catalogue?categorie=anime', label: 'Anime', end: false }] : []),
+  { to: '/catalogue?type=film', label: 'Films', end: false },
+  { to: '/catalogue?type=serie', label: 'Séries', end: false },
+  { to: '/catalogue?type=anime', label: 'Animés', end: false },
+  { to: '/calendrier', label: 'Calendrier', end: true },
   { to: '/ma-liste', label: 'Ma liste', end: true },
 ]
 
@@ -24,16 +24,27 @@ function tintOf(index: number): string {
   return PROFILE_TINTS[index % PROFILE_TINTS.length] ?? PROFILE_TINTS[0]
 }
 
+/** Une couleur stable pour un pseudo, sans rien stocker. */
+function teinteDuNom(nom: string): number {
+  let h = 0
+  for (let i = 0; i < nom.length; i++) h = (h * 31 + nom.charCodeAt(i)) % 997
+  return h
+}
+
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
-  const [newName, setNewName] = useState('')
   const profileRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
   const reduced = useReducedMotion()
-  const { profiles, profile, switchProfile, addProfile } = useLibrary()
+  const { compte, rafraichisCompte } = useLibrary()
+
+  async function seDeconnecter() {
+    await deconnexion()
+    await rafraichisCompte()
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)
@@ -138,11 +149,15 @@ export function Navbar() {
                 onClick={() => setProfileOpen((v) => !v)}
                 aria-expanded={profileOpen}
                 aria-haspopup="menu"
-                aria-label={`Profil : ${profile?.name ?? 'chargement'}`}
-                className="grid h-9 w-9 place-items-center rounded-full text-[0.8rem] font-bold text-ink-950 transition-transform hover:scale-105"
-                style={{ backgroundColor: tintOf(profile?.tint ?? 0) }}
+                aria-label={compte ? `Compte : ${compte.nom}` : 'Compte'}
+                className={`grid h-9 w-9 place-items-center rounded-full text-[0.8rem] font-bold transition-transform hover:scale-105 ${
+                  compte ? 'text-ink-950' : 'border border-ink-600 text-haze-300 hover:text-paper'
+                }`}
+                /* Sans compte, pas d'initiale à montrer : une silhouette dit
+                   « ici, les comptes » sans inventer un nom. */
+                style={compte ? { backgroundColor: tintOf(teinteDuNom(compte.nom)) } : undefined}
               >
-                {(profile?.name ?? '?').slice(0, 1).toUpperCase()}
+                {compte ? compte.nom.slice(0, 1).toUpperCase() : <Icon name="user" size={18} />}
               </button>
 
               <AnimatePresence>
@@ -155,55 +170,68 @@ export function Navbar() {
                     transition={{ duration: reduced ? 0 : 0.16, ease: [0.22, 1, 0.36, 1] }}
                     className="absolute right-0 top-12 w-60 origin-top-right overflow-hidden rounded-[var(--radius-panel)] border border-ink-600 bg-ink-900 p-2 glow-lift"
                   >
-                    <p className="px-2 pb-1.5 pt-1 text-xs text-haze-400">Qui regarde ?</p>
-                    {profiles.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        role="menuitem"
-                        onClick={() => { switchProfile(p.id); setProfileOpen(false) }}
-                        className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm transition-colors ${
-                          p.id === profile?.id ? 'bg-ink-700 text-paper' : 'text-haze-300 hover:bg-ink-800 hover:text-paper'
-                        }`}
-                      >
-                        <span
-                          className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold text-ink-950"
-                          style={{ backgroundColor: tintOf(p.tint) }}
+                    {/* Deux états, et rien entre les deux : on a un compte,
+                        ou on n'en a pas. Les profils locaux ont disparu d'ici
+                        avec l'arrivée des comptes — proposer les deux revenait
+                        à demander aux gens de choisir entre deux notions qui
+                        font la même chose. */}
+                    {compte ? (
+                      <>
+                        <p className="px-2 pt-1 text-xs text-haze-400">Connecté</p>
+                        <p className="truncate px-2 pb-2 font-wide text-sm font-bold text-paper">
+                          {compte.nom}
+                        </p>
+                        <NavLink
+                          to="/mon-compte"
+                          role="menuitem"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-haze-300 transition-colors hover:bg-ink-800 hover:text-paper"
                         >
-                          {p.name.slice(0, 1).toUpperCase()}
-                        </span>
-                        <span className="truncate">{p.name}</span>
-                        {p.id === profile?.id && <Icon name="check" size={15} className="ml-auto text-lamp-500" />}
-                      </button>
-                    ))}
-
-                    <form
-                      className="mt-1.5 flex gap-1.5 border-t border-ink-700 pt-2"
-                      onSubmit={(e) => {
-                        e.preventDefault()
-                        const name = newName.trim()
-                        if (!name) return
-                        void addProfile(name)
-                        setNewName('')
-                        setProfileOpen(false)
-                      }}
-                    >
-                      <input
-                        value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
-                        placeholder="Nouveau profil"
-                        aria-label="Nom du nouveau profil"
-                        maxLength={18}
-                        className="h-9 min-w-0 flex-1 rounded-lg bg-ink-800 px-2.5 text-sm text-paper outline-none placeholder:text-haze-400/70 focus-visible:outline-2 focus-visible:outline-lamp-500"
-                      />
-                      <button
-                        type="submit"
-                        aria-label="Créer le profil"
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-700 text-paper transition-colors hover:bg-lamp-500 hover:text-ink-950"
-                      >
-                        <Icon name="plus" size={16} />
-                      </button>
-                    </form>
+                          <Icon name="user" size={15} />
+                          Mon compte
+                        </NavLink>
+                        <NavLink
+                          to="/ma-liste"
+                          role="menuitem"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-haze-300 transition-colors hover:bg-ink-800 hover:text-paper"
+                        >
+                          <Icon name="check" size={15} />
+                          Ma liste
+                        </NavLink>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => { setProfileOpen(false); void seDeconnecter() }}
+                          className="mt-1 flex w-full items-center gap-2.5 rounded-lg border-t border-ink-700 px-2 pb-2 pt-3 text-left text-sm text-haze-300 transition-colors hover:text-paper"
+                        >
+                          Se déconnecter
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="px-2 pb-2 pt-1 text-xs leading-snug text-haze-400">
+                          Un compte fait suivre votre liste et vos reprises d'un appareil à
+                          l'autre. Sans compte, elles restent dans ce navigateur.
+                        </p>
+                        <NavLink
+                          to="/connexion"
+                          role="menuitem"
+                          onClick={() => setProfileOpen(false)}
+                          className="block rounded-lg px-2 py-2 text-sm text-haze-300 transition-colors hover:bg-ink-800 hover:text-paper"
+                        >
+                          Se connecter
+                        </NavLink>
+                        <NavLink
+                          to="/inscription"
+                          role="menuitem"
+                          onClick={() => setProfileOpen(false)}
+                          className="block rounded-lg px-2 py-2 text-sm font-medium text-lamp-500 transition-colors hover:bg-ink-800"
+                        >
+                          Créer un compte
+                        </NavLink>
+                      </>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

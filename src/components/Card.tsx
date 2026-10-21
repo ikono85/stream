@@ -3,12 +3,18 @@ import { Icon } from '@/components/Icon'
 import { Art } from '@/components/Art'
 import { StatusBadge } from '@/components/Badge'
 import { useLibrary } from '@/hooks/libraryContext'
-import { remaining, rating, shape } from '@/lib/format'
+import { remaining, rating, shape, langues, ecartEnJours, jourRelatif } from '@/lib/format'
 import { posterArt, backdropArt } from '@/lib/poster'
-import { hasVideo } from '@/data/catalog'
+import { image, TAILLES } from '@/lib/images'
 import type { Entry, Progress } from '@/types'
 
-/** Portrait card — something you have not started. */
+/**
+ * Une carte peut recevoir un titre complet, venu d'une fiche /media, ou un
+ * titre nu, venu d'une page de catalogue au-delà de ce que le proxy enrichit.
+ * Chaque bloc ci-dessous ne s'affiche donc que s'il a de quoi : l'affiche
+ * dessinée remplace celle qui manque, et le résumé absent ne laisse pas de
+ * trou.
+ */
 export function PosterCard({ entry, eager = false, fluid = false }: {
   entry: Entry
   eager?: boolean
@@ -17,22 +23,20 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
 }) {
   const { inList, toggleList } = useLibrary()
   const saved = inList(entry.id)
-  const playable = hasVideo(entry)
+  const forme = shape(entry)
+
+  /* Un épisode qui sort aujourd'hui ou demain mérite d'être vu depuis
+     l'affiche. Au-delà, l'information appartient à la fiche et au
+     calendrier : une pastille « dans onze jours » n'aide personne. */
+  const ecartProchain = ecartEnJours(entry.nextEpisode?.airDate)
+  const sortieProche = ecartProchain !== null && ecartProchain >= 0 && ecartProchain <= 1
 
   return (
     <article className={`group relative ${fluid ? 'w-full' : 'shrink-0 snap-start w-36 sm:w-40 lg:w-44 xl:w-48'}`}>
-      {/* Warm light for what plays, cold for what does not: the lift says the
-          same thing as the badge, a beat earlier. */}
-      <div
-        className={`relative overflow-hidden rounded-[var(--radius-poster)] bg-ink-800 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-soft)] group-hover:scale-[1.045] group-focus-within:scale-[1.045] ${
-          playable
-            ? 'group-hover:glow-warm group-focus-within:glow-warm'
-            : 'group-hover:glow-lift group-focus-within:glow-lift'
-        }`}
-      >
+      <div className="relative overflow-hidden rounded-[var(--radius-poster)] bg-ink-800 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-soft)] group-hover:scale-[1.045] group-hover:glow-warm group-focus-within:scale-[1.045] group-focus-within:glow-warm">
         <div className="grain relative aspect-2/3">
           <Art
-            src={entry.artwork}
+            src={image(entry.posterPath, TAILLES.affiche)}
             fallback={posterArt(entry.id)}
             alt=""
             loading={eager ? 'eager' : 'lazy'}
@@ -44,8 +48,8 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
               {entry.title}
             </h3>
             <p className="mt-0.5 flex items-center gap-2 text-[0.68rem] text-haze-400 nums-tabular">
-              <span>{entry.year}</span>
-              {shape(entry) && <span>{shape(entry)}</span>}
+              {entry.year > 0 && <span>{entry.year}</span>}
+              {forme && <span>{forme}</span>}
             </p>
           </div>
         </div>
@@ -57,15 +61,18 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
         <Link
           to={`/titre/${entry.id}`}
           className="absolute inset-0 rounded-[var(--radius-poster)]"
-          aria-label={`${entry.title}, ${entry.year}`}
+          aria-label={entry.year > 0 ? `${entry.title}, ${entry.year}` : entry.title}
         >
           <span className="sr-only">{entry.title}</span>
         </Link>
 
-        {/* Sits above the full-card link — among absolutely positioned
-            siblings the last one wins — and takes no pointer events, so the
-            click underneath it still reaches the link. */}
         <StatusBadge entry={entry} className="pointer-events-none absolute left-2 top-2 z-10" />
+
+        {sortieProche && entry.nextEpisode && (
+          <span className="pointer-events-none absolute right-2 top-2 z-10 rounded-full bg-lamp-500 px-2 py-0.5 font-wide text-[0.58rem] font-bold uppercase tracking-[0.06em] text-ink-950">
+            S{entry.nextEpisode.season} E{entry.nextEpisode.episode} {jourRelatif(entry.nextEpisode.airDate)}
+          </span>
+        )}
 
         {/* Pointer-only panel: everything it offers is reachable another way,
             so touch screens — where a hover state sticks — never see it. */}
@@ -78,29 +85,34 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
             </h3>
 
             <p className="mt-1 flex items-center gap-2 text-[0.66rem] text-haze-400 nums-tabular">
-              <span>{entry.year}</span>
-              {shape(entry) && <span>{shape(entry)}</span>}
-              {entry.rating > 0 && <span className="text-lamp-500">{rating(entry.rating)}</span>}
+              {entry.year > 0 && <span>{entry.year}</span>}
+              {forme && <span>{forme}</span>}
+              {entry.rating !== undefined && entry.rating > 0 && (
+                <span className="text-lamp-500">{rating(entry.rating)}</span>
+              )}
+              {entry.quality && <span>{entry.quality}</span>}
             </p>
 
-            {entry.genres.length > 0 && (
+            {entry.genres?.length ? (
               <p className="mt-1 truncate text-[0.66rem] text-haze-300">{entry.genres.join(' · ')}</p>
+            ) : entry.languages.length > 0 ? (
+              <p className="mt-1 truncate text-[0.66rem] text-haze-300">{langues(entry.languages)}</p>
+            ) : null}
+
+            {entry.synopsis && (
+              <p className="mt-1.5 text-[0.68rem] leading-snug line-clamp-2 text-haze-400">
+                {entry.synopsis}
+              </p>
             )}
 
-            <p className="mt-1.5 text-[0.68rem] leading-snug line-clamp-2 text-haze-400">
-              {entry.synopsis}
-            </p>
-
             <div className="mt-2.5 flex items-center gap-1.5">
-              {playable && (
-                <Link
-                  to={`/lecture/${entry.id}`}
-                  aria-label={`Lire ${entry.title}`}
-                  className="grid h-8 w-8 place-items-center rounded-full bg-lamp-500 text-ink-950 transition-colors hover:bg-lamp-400"
-                >
-                  <Icon name="play" size={15} className="translate-x-px" />
-                </Link>
-              )}
+              <Link
+                to={`/lecture/${entry.id}`}
+                aria-label={`Lire ${entry.title}`}
+                className="grid h-8 w-8 place-items-center rounded-full bg-lamp-500 text-ink-950 transition-colors hover:bg-lamp-400"
+              >
+                <Icon name="play" size={15} className="translate-x-px" />
+              </Link>
               <button
                 type="button"
                 onClick={() => toggleList(entry.id)}
@@ -134,11 +146,10 @@ export function ResumeCard({ entry, progress }: { entry: Entry; progress: Progre
 
   return (
     <article className="group relative shrink-0 snap-start w-64 sm:w-72 lg:w-80">
-      {/* Something already started is something that plays: always warm. */}
       <div className="relative overflow-hidden rounded-[var(--radius-poster)] bg-ink-800 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-soft)] group-hover:scale-[1.03] group-hover:glow-warm group-focus-within:scale-[1.03] group-focus-within:glow-warm">
         <div className="grain relative aspect-video">
           <Art
-            src={entry.backdrop}
+            src={image(entry.backdropPath, TAILLES.fond)}
             fallback={backdropArt(entry.id)}
             alt=""
             loading="lazy"
