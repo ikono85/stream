@@ -134,7 +134,20 @@ export function Watch() {
       titre: entry.title,
       ...(episode ? { episode: `S${episode.season} E${episode.number}` } : {}),
     })
-  }, [entry, episode])
+
+    /* Et on le note aussi pour le spectateur lui-même. Sans position — le
+       lecteur n'en donne pas — mais savoir quel épisode a été lancé suffit à
+       reprendre une série au bon endroit, ce qui est l'essentiel. Une durée à
+       zéro dit « lancé, position inconnue », et l'interface s'y tient au lieu
+       d'inventer une barre de progression. */
+    saveProgress({
+      entryId: entry.id,
+      ...(episode ? { episodeId: episode.id } : {}),
+      seconds: 0,
+      duration: 0,
+      updatedAt: Date.now(),
+    })
+  }, [entry, episode, saveProgress])
 
   const enregistre = useCallback((seconds: number, duration: number) => {
     if (!entry || duration <= 0) return

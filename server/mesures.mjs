@@ -19,6 +19,7 @@ const DERNIERES_ERREURS_MAX = 40
 const etat = {
   appels: 0,
   depuisLeCache: 0,
+  servisPerimes: 0,
   erreurs: 0,
   parCode: /** @type {Record<string, number>} */ ({}),
   parRoute: /** @type {Record<string, number>} */ ({}),
@@ -49,6 +50,16 @@ export function noteAppel(chemin, statut, ms) {
   etat.parCode[String(statut)] = (etat.parCode[String(statut)] ?? 0) + 1
   etat.dureeTotale += ms
   if (ms > etat.dureeMax) etat.dureeMax = ms
+}
+
+/**
+ * Une réponse servie depuis une copie périmée, parce que l'API était en
+ * panne. C'est un indicateur à part : le site a tenu, mais quelque chose
+ * n'allait pas en face.
+ */
+export function notePerime(chemin) {
+  etat.servisPerimes += 1
+  etat.dernierPerime = { a: new Date().toISOString(), chemin: String(chemin).slice(0, 120) }
 }
 
 export function noteErreur(chemin, code, message) {
@@ -95,6 +106,8 @@ export function resume(extra = {}) {
       depuisLeCache: etat.depuisLeCache,
       partis,
       tauxDeCache: etat.appels ? Math.round((etat.depuisLeCache / etat.appels) * 100) : 0,
+      servisPerimes: etat.servisPerimes,
+      dernierPerime: etat.dernierPerime ?? null,
       dureeMoyenneMs: partis ? Math.round(etat.dureeTotale / partis) : 0,
       dureeMaxMs: Math.round(etat.dureeMax),
       parCode: etat.parCode,

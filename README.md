@@ -133,6 +133,16 @@ nouveautés cinq minutes. Mettez `HEIWA_NO_CACHE=1` pour tout désactiver.
 une reprise sur `429` qui respecte l'en-tête `Retry-After`. Une même adresse
 demandée six fois en même temps ne part qu'une fois.
 
+**Un repli sur le périmé.** Une réponse expirée n'est pas jetée : elle reste
+en mémoire. Si HeiwaStream répond `5xx`, `429`, ou ne répond pas du tout, le
+proxy ressert la dernière copie connue plutôt qu'une page d'erreur. Une
+affiche d'hier vaut mieux qu'un site vide, et le visiteur ne voit rien.
+
+Ce repli ne masque que les **pannes**. Un `404` et un paramètre invalide sont
+de vraies réponses : les recouvrir d'une vieille copie ferait survivre un
+titre retiré du catalogue. Le panneau d'administration compte ces réponses
+périmées à part — le site a tenu, mais quelque chose n'allait pas en face.
+
 **L'enrichissement.** Le catalogue ne renvoie ni affiche ni résumé ; la fiche
 `/media` les a. Plutôt que cinquante allers-retours depuis le navigateur, le
 proxy complète les entrées lui-même quand l'appel porte `rich=N` : il va
@@ -280,6 +290,13 @@ Ce que l'iframe change, et qu'il vaut mieux savoir :
   jamais attendre un message**. Il se retire sur l'événement `load` de
   l'iframe, que le navigateur garantit.
 
+  Ce qu'on peut quand même faire : noter **ce qui a été lancé**. Au démarrage
+  d'une lecture, le titre et l'épisode sont enregistrés avec une durée à
+  zéro, qui signifie « lancé, position inconnue ». La rangée « Reprendre » de
+  l'accueil se remplit donc à nouveau et ramène une série au bon épisode. Les
+  cartes concernées n'affichent ni barre de progression ni durée restante —
+  seulement « S2 E4 · aujourd'hui », qui est tout ce qu'on sait.
+
 Le site n'utilise du lecteur distant que la lecture. Les réglages de couleurs
 et de marque qu'il propose demandent un domaine déclaré avec la clé, ce qui
 n'a de sens qu'une fois le site en ligne — voir
@@ -394,6 +411,14 @@ interrupteur dans le panneau pour fermer les inscriptions en un clic.
 les routes de bibliothèque lisent l'identifiant du compte **dans ce cookie**,
 jamais dans l'URL ni dans le corps de la requête : c'est ce qui garantit qu'on
 ne lit pas la liste du voisin en changeant un numéro.
+
+**Ce qu'on avait avant de s'inscrire n'est pas perdu.** À la connexion comme
+à l'inscription, si ce navigateur gardait une liste ou des lectures en cours,
+le site propose de les verser dans le compte. La fusion ajoute sans écraser —
+un compte qui avait déjà une liste la garde — et rien n'est effacé
+localement, pour qu'on puisse revenir en arrière. Sans cette étape, se créer
+un compte faisait repartir de zéro, ce qui est précisément le genre de détail
+qui fait renoncer à s'inscrire.
 
 Tout est rangé dans `donnees/`, non versionné : `comptes.json`,
 `bibliotheques/<id>.json`, et le secret de signature. Une base de données
@@ -633,6 +658,7 @@ src/
   lib/
     heiwa.ts             Le client de l'API — le seul à connaître ses réponses
     compte.ts            Inscription, connexion, mon compte
+    reprise-locale.ts    Verser la liste du navigateur dans un compte neuf
     suivi.ts             Les signaux que seul le navigateur connaît
     images.ts            Chemins TMDB vers URL d'images
     filtres.ts           Entre l'URL du catalogue et les paramètres de l'API
@@ -678,7 +704,8 @@ vous manque.
   sont ceux de HeiwaStream ; sans clé valide, le site est vide.
 - **Pas de générique.** L'API n'expose ni casting ni réalisation.
 - **Pas de reprise à la seconde près, ni de synchro de lecture**, tant que le
-  lecteur distant reste muet — voir le chapitre Le lecteur.
+  lecteur distant reste muet. On sait quel épisode a été lancé et quand, pas
+  où la lecture en était — voir le chapitre Le lecteur.
 - **Pas de synchronisation entre appareils sans compte.** Sans inscription,
   la liste reste dans le navigateur où elle a été faite.
 - **Pas de téléchargement hors ligne**, et pas de contrôle sur les options du

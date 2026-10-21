@@ -23,7 +23,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
-import { noteAppel, noteCache, noteErreur, noteQuota } from './mesures.mjs'
+import { noteAppel, noteCache, noteErreur, notePerime, noteQuota } from './mesures.mjs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -56,6 +56,8 @@ const BASE = 'https://heiwastream.fr/api/v1'
    d'erreur en 403 une fois le site hébergé. */
 const AGENT = 'Lucarne/1.0 (+https://github.com)'
 const RICH_MAX = Number(process.env.HEIWA_RICH ?? 24)
+/** Au-delà, on commence à retirer les entrées périmées les plus anciennes. */
+const CACHE_MAX = 4000
 
 /** Les seules routes que le proxy accepte de relayer. */
 const ROUTES = /^(catalog|find|news|top|calendar|available|media|tv)(\/|$)/
@@ -128,11 +130,38 @@ relitDisque()
 function lis(cle) {
   const entree = cache.get(cle)
   if (!entree) return null
-  if (entree.jusqua <= Date.now()) {
-    cache.delete(cle)
-    return null
-  }
+  /* Périmée : elle ne sert plus de réponse normale, mais on la garde — voir
+     `lisPerime`, qui s'en sert quand l'API ne répond plus. */
+  if (entree.jusqua <= Date.now()) return null
   return entree.corps
+}
+
+/**
+ * La dernière réponse connue, même périmée.
+ *
+ * Quand HeiwaStream tombe, le site a souvent les fiches sous la main : les
+ * jeter pour afficher une erreur serait absurde. Une affiche d'hier vaut
+ * mieux qu'une page vide, et l'interface n'a pas à savoir que la donnée a
+ * vieilli — c'est le même contenu, simplement plus tout jeune.
+ */
+function lisPerime(cle) {
+  return cache.get(cle)?.corps ?? null
+}
+
+/**
+ * Le cache ne se vidant plus tout seul à la péremption, il faut une borne.
+ * On retire les plus anciennes entrées périmées quand le nombre devient
+ * déraisonnable — jamais les fiches encore valides.
+ */
+function borneLeCache() {
+  if (cache.size <= CACHE_MAX) return
+  const perimees = []
+  const maintenant = Date.now()
+  for (const [cle, entree] of cache) {
+    if (entree.jusqua <= maintenant) perimees.push([cle, entree.jusqua])
+  }
+  perimees.sort((a, b) => a[1] - b[1])
+  for (const [cle] of perimees.slice(0, cache.size - CACHE_MAX)) cache.delete(cle)
 }
 
 function ecris(cle, corps, secondes) {
@@ -145,6 +174,7 @@ function ecris(cle, corps, secondes) {
     sale = true
     planifieEcriture()
   }
+  borneLeCache()
 }
 
 /* ---------- file d'attente vers l'API ---------- */
@@ -247,6 +277,20 @@ function demande(chemin) {
     .then((corps) => {
       ecris(chemin, corps, duree(chemin))
       return corps
+    })
+    .catch((erreur) => {
+      /* Une panne de leur côté, pas une réponse : un 404 ou un paramètre
+         invalide sont de vraies réponses, et les masquer par une vieille
+         copie induirait en erreur. */
+      const statut = erreur instanceof ErreurApi ? erreur.statut : 0
+      const panne = statut === 0 || statut === 429 || statut >= 500
+      if (!panne) throw erreur
+
+      const vieux = lisPerime(chemin)
+      if (vieux === null) throw erreur
+
+      notePerime(chemin)
+      return vieux
     })
     .finally(() => enVol.delete(chemin))
 

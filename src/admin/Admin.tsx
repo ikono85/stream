@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Carte, Chiffre, Onglet, dateHeure, heure, nombre } from '@/admin/commun'
+import { Icon } from '@/components/Icon'
 import { Usage } from '@/admin/Usage'
 import { Comptes } from '@/admin/Comptes'
 
@@ -24,6 +25,8 @@ interface Mesures {
     depuisLeCache: number
     partis: number
     tauxDeCache: number
+    servisPerimes: number
+    dernierPerime: { a: string; chemin: string } | null
     dureeMoyenneMs: number
     dureeMaxMs: number
     parCode: Record<string, number>
@@ -228,6 +231,20 @@ export function Admin() {
                 <p className="mt-4 text-xs text-haze-400 nums-tabular">
                   Durée moyenne {api?.dureeMoyenneMs ?? 0} ms · pic {api?.dureeMaxMs ?? 0} ms
                 </p>
+
+                {/* Le site a tenu malgré une panne en face. À signaler : tout
+                    allait bien pour le visiteur, pas pour HeiwaStream. */}
+                {(api?.servisPerimes ?? 0) > 0 && (
+                  <p className="mt-2 flex items-start gap-1.5 text-xs text-lamp-500">
+                    <Icon name="info" size={13} className="mt-px shrink-0" />
+                    <span>
+                      {nombre.format(api?.servisPerimes ?? 0)} réponse(s) servie(s) depuis une
+                      copie périmée, l'API étant injoignable
+                      {api?.dernierPerime && ` — la dernière à ${heure.format(new Date(api.dernierPerime.a))}`}.
+                      Les visiteurs n'ont rien vu.
+                    </span>
+                  </p>
+                )}
                 {Object.keys(api?.parRoute ?? {}).length > 0 && (
                   <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-haze-300">
                     {Object.entries(api?.parRoute ?? {})
