@@ -13,6 +13,7 @@ import { episodes as chargeEpisodes, fiche, lisEntryId, semblables } from '@/lib
 import { posterArt, bannerArt } from '@/lib/poster'
 import { image, TAILLES } from '@/lib/images'
 import { genreFiltrable } from '@/lib/genres'
+import { NOM_AFFICHE, transitionsDeVue } from '@/lib/transitions'
 import { suit } from '@/lib/suivi'
 import { clock, ecartEnJours, jour, jourRelatif, langues, rating, shape } from '@/lib/format'
 import { NotFound } from '@/pages/NotFound'
@@ -141,10 +142,13 @@ export function Title() {
           </Link>
 
           <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:gap-12">
+            {/* L'autre extrémité du morphing : c'est le même nom qui relie
+                l'affiche de la grille à celle-ci. */}
             <Art
               src={image(entry.posterPath, TAILLES.afficheLarge)}
               fallback={posterArt(entry.id)}
               alt={`Affiche de ${entry.title}`}
+              style={transitionsDeVue ? { viewTransitionName: NOM_AFFICHE } : undefined}
               className="aspect-2/3 w-40 shrink-0 self-start rounded-[var(--radius-poster)] object-cover glow-lift sm:w-48 lg:w-60"
             />
 

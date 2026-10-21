@@ -1,9 +1,12 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Icon } from '@/components/Icon'
 import { Art } from '@/components/Art'
 import { StatusBadge } from '@/components/Badge'
 import { useLibrary } from '@/hooks/libraryContext'
 import { remaining, rating, shape, langues, ecartEnJours, jourRelatif } from '@/lib/format'
+import { lisEpisodeId } from '@/lib/heiwa'
+import { NOM_AFFICHE, avecTransition, clicOrdinaire, transitionsDeVue } from '@/lib/transitions'
 import { posterArt, backdropArt } from '@/lib/poster'
 import { image, TAILLES } from '@/lib/images'
 import type { Entry, Progress } from '@/types'
@@ -25,6 +28,40 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
   const saved = inList(entry.id)
   const forme = shape(entry)
 
+  /* Un nom de transition doit être unique à l'écran : le poser sur cinquante
+     cartes ferait échouer la transition en silence. Seule la carte cliquée
+     le porte, et seulement le temps du changement de page. */
+  const navigate = useNavigate()
+  const [enTransition, setEnTransition] = useState(false)
+  const fiche = `/titre/${entry.id}`
+  const nomDeTransition = enTransition ? ({ viewTransitionName: NOM_AFFICHE } as const) : undefined
+
+  /**
+   * La fiche s'ouvre avec ce que la carte sait déjà — affiche, titre, année.
+   * Sans cela, la page d'arrivée afficherait un rectangle gris le temps de
+   * son appel, et l'affiche n'aurait nulle part où atterrir : la transition
+   * se dégraderait en simple fondu.
+   */
+  const apercu = {
+    id: entry.id,
+    title: entry.title,
+    year: entry.year,
+    kind: entry.kind,
+    categorie: entry.categorie,
+    posterPath: entry.posterPath ?? null,
+    backdropPath: entry.backdropPath ?? null,
+  }
+
+  function ouvre(e: React.MouseEvent) {
+    if (!transitionsDeVue || !clicOrdinaire(e)) return
+    e.preventDefault()
+    void avecTransition(
+      setEnTransition,
+      () => navigate(fiche, { state: { apercu } }),
+      () => import('@/pages/Title'),
+    )
+  }
+
   /* Un épisode qui sort aujourd'hui ou demain mérite d'être vu depuis
      l'affiche. Au-delà, l'information appartient à la fiche et au
      calendrier : une pastille « dans onze jours » n'aide personne. */
@@ -41,6 +78,7 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
             alt=""
             loading={eager ? 'eager' : 'lazy'}
             decoding="async"
+            style={nomDeTransition}
             className="h-full w-full object-cover"
           />
           <div className="absolute inset-x-0 bottom-0 p-2.5 pt-14 bg-gradient-to-t from-ink-950 via-ink-950/85 via-35% to-transparent">
@@ -59,7 +97,9 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
             siblings the last one wins the stack, and this link would
             otherwise swallow every click meant for a button. */}
         <Link
-          to={`/titre/${entry.id}`}
+          to={fiche}
+          state={{ apercu }}
+          onClick={ouvre}
           className="absolute inset-0 rounded-[var(--radius-poster)]"
           aria-label={entry.year > 0 ? `${entry.title}, ${entry.year}` : entry.title}
         >
@@ -136,9 +176,22 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
 /** Landscape card — something you started. The shape says so. */
 export function ResumeCard({ entry, progress }: { entry: Entry; progress: Progress }) {
   const { dropProgress } = useLibrary()
-  const pct = progress.duration > 0
+
+  /* Une durée connue, donc une vraie progression. Sans elle, on sait
+     seulement ce qui a été lancé et quand : pas de barre, pas de « il reste
+     34 min » qu'aucune mesure n'appuie. */
+  const mesuree = progress.duration > 0
+  const pct = mesuree
     ? Math.min(100, Math.round((progress.seconds / progress.duration) * 100))
     : 0
+
+  const episode = progress.episodeId ? lisEpisodeId(progress.episodeId) : null
+  const legende = mesuree
+    ? remaining(progress.seconds, progress.duration)
+    : [
+        episode ? `S${episode.season} E${episode.number}` : null,
+        jourRelatif(new Date(progress.updatedAt).toISOString()),
+      ].filter(Boolean).join(' · ')
 
   const target = progress.episodeId
     ? `/lecture/${entry.id}?episode=${progress.episodeId}`
@@ -161,7 +214,7 @@ export function ResumeCard({ entry, progress }: { entry: Entry; progress: Progre
           <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 max-[1024px]:opacity-100">
             <Link
               to={target}
-              aria-label={`Reprendre ${entry.title}`}
+              aria-label={mesuree ? `Reprendre ${entry.title}` : `Relancer ${entry.title}`}
               className="pointer-events-auto grid h-14 w-14 place-items-center rounded-full bg-lamp-500/95 text-ink-950 glow-lamp"
             >
               <Icon name="play" size={22} className="translate-x-px" />
@@ -178,17 +231,20 @@ export function ResumeCard({ entry, progress }: { entry: Entry; progress: Progre
           </button>
         </div>
 
-        <div className="relative h-[3px] bg-ink-600">
-          <div className="h-full bg-lamp-500" style={{ width: `${pct}%` }} />
-        </div>
+        {/* La barre n'apparaît que si elle dit quelque chose. */}
+        {mesuree ? (
+          <div className="relative h-[3px] bg-ink-600">
+            <div className="h-full bg-lamp-500" style={{ width: `${pct}%` }} />
+          </div>
+        ) : (
+          <div className="h-[3px] bg-ink-700" />
+        )}
 
         <div className="p-3">
           <h3 className="font-wide text-sm font-bold leading-tight text-paper line-clamp-1">
             {entry.title}
           </h3>
-          <p className="mt-1 text-xs text-haze-400 nums-tabular">
-            {remaining(progress.seconds, progress.duration)}
-          </p>
+          <p className="mt-1 text-xs text-haze-400 nums-tabular">{legende}</p>
         </div>
 
         <Link

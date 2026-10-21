@@ -301,15 +301,30 @@ export function Embed({
       />
 
       {/* Le temps que le lecteur distant s'annonce, l'écran reste noir : un
-          voile qui dit ce qu'on attend vaut mieux qu'un rectangle vide. */}
-      {!pret && !erreur && (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-ink-950">
-          <div className="flex items-center gap-3 text-sm text-haze-400">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-600 border-t-lamp-500" />
-            Chargement du lecteur
-          </div>
-        </div>
-      )}
+          voile qui dit ce qu'on attend vaut mieux qu'un rectangle vide.
+          Il s'efface en fondu plutôt que de disparaître d'un coup — le film
+          naît du noir, comme dans une salle. */}
+      <AnimatePresence>
+        {!pret && !erreur && (
+          <motion.div
+            key="voile"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduced ? 0 : 0.55, ease: [0.22, 1, 0.36, 1] }}
+            className="pointer-events-none absolute inset-0 grid place-items-center bg-ink-950"
+          >
+            <motion.div
+              exit={{ opacity: 0 }}
+              transition={{ duration: reduced ? 0 : 0.2 }}
+              className="flex items-center gap-3 text-sm text-haze-400"
+            >
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-600 border-t-lamp-500" />
+              Chargement du lecteur
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {erreur && (
         <div className="absolute inset-0 grid place-items-center bg-ink-950 px-6">

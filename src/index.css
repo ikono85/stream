@@ -168,6 +168,40 @@
   }
 }
 
+/* ---------- transitions de vue ----------
+ * Chrome, Edge et Safari 18 photographient l'écran avant et après un
+ * changement de page et animent l'un vers l'autre. Firefox ignore ces
+ * règles, et retombe sur le fondu de motion — voir lib/transitions.
+ */
+
+/* Le fondu d'ensemble, calé sur la durée qu'avait l'animation de page. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 260ms;
+  animation-timing-function: var(--ease-out-soft);
+}
+
+/* L'affiche reliée entre la grille et la fiche. Plus lente que le fondu :
+   c'est elle qu'on suit des yeux, et elle traverse tout l'écran. */
+::view-transition-group(affiche-active) {
+  animation-duration: 440ms;
+  animation-timing-function: var(--ease-out-soft);
+}
+
+/* Sans ceci, les deux affiches se croisent en fondu pendant que le cadre
+   change de taille, et l'image paraît s'écraser. En coupant le fondu et en
+   laissant l'image remplir son cadre, elle se déforme proprement. */
+::view-transition-image-pair(affiche-active) {
+  isolation: auto;
+}
+::view-transition-old(affiche-active),
+::view-transition-new(affiche-active) {
+  animation: none;
+  mix-blend-mode: normal;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* Honour the system preference everywhere, including library animations */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -177,4 +211,15 @@
     scroll-behavior: auto !important;
   }
   .skeleton { animation: none; background: var(--color-ink-700); }
+
+  /* Les pseudo-éléments de transition de vue ne sont pas atteints par le
+     sélecteur universel ci-dessus : il faut les nommer. */
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-group(affiche-active),
+  ::view-transition-old(affiche-active),
+  ::view-transition-new(affiche-active) {
+    animation: none !important;
+  }
 }

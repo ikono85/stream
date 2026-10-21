@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { motion, useReducedMotion } from 'motion/react'
 import { Icon } from '@/components/Icon'
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function Row({ title, href, children }: Props) {
+  const reduced = useReducedMotion()
   const trackRef = useRef<HTMLDivElement>(null)
   const [atStart, setAtStart] = useState(true)
   const [atEnd, setAtEnd] = useState(true)
@@ -48,8 +50,21 @@ export function Row({ title, href, children }: Props) {
      dimming it for no reason. */
   const edge = !scrollable ? '' : atStart ? 'fade-end' : atEnd ? 'fade-start' : 'fade-both'
 
+  /* Une arrivée, pas une apparition : la rangée monte de quelques pixels
+     quand elle entre dans l'écran, une seule fois. `once` compte — une
+     rangée qui rejoue son animation à chaque passage devient vite pénible
+     sur une page qu'on parcourt dans les deux sens. */
+  const arrivee = reduced
+    ? {}
+    : {
+        initial: { opacity: 0, y: 16 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, margin: '-80px' },
+        transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const },
+      }
+
   return (
-    <section className="group/row relative py-5">
+    <motion.section {...arrivee} className="group/row relative py-5">
       <div className="gutter mb-3 flex items-baseline justify-between gap-4">
         <h2 className="font-wide text-base font-bold text-paper lg:text-lg">
           {href ? (
@@ -101,6 +116,6 @@ export function Row({ title, href, children }: Props) {
           </>
         )}
       </div>
-    </section>
+    </motion.section>
   )
 }
