@@ -93,13 +93,13 @@ export function Home() {
 
       <div className="mx-auto max-w-[90rem] pb-8">
         {!ready && (
-          <Row title="Reprendre la lecture">
+          <Row title="Reprendre">
             {Array.from({ length: 4 }, (_, i) => <ResumeSkeleton key={i} />)}
           </Row>
         )}
 
         {ready && reprises.length > 0 && (
-          <Row title="Reprendre la lecture">
+          <Row title="Reprendre">
             {reprises.map(({ p, entry }) => (
               <ResumeCard key={`${p.entryId}-${p.episodeId ?? ''}`} entry={entry} progress={p} />
             ))}

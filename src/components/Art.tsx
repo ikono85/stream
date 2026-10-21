@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 
 interface Props {
   /** Preferred image. Undefined goes straight to the fallback. */
@@ -10,6 +10,8 @@ interface Props {
   loading?: 'eager' | 'lazy'
   decoding?: 'async' | 'sync' | 'auto'
   fetchPriority?: 'high' | 'low' | 'auto'
+  /** Porte le nom de transition de vue quand cette affiche est celle qui part. */
+  style?: CSSProperties
 }
 
 /**

@@ -148,12 +148,21 @@ export interface Upcoming {
   date: string
 }
 
-/** Où un spectateur s'est arrêté. */
+/**
+ * Où un spectateur en est.
+ *
+ * `duration` à zéro signifie « lancé, position inconnue » : c'est le cas
+ * normal avec le lecteur HeiwaStream, qui ne rapporte rien. On sait alors
+ * quel titre et quel épisode ont été lancés, et quand — ce qui suffit à
+ * reprendre une série au bon endroit, mais pas à afficher une barre de
+ * progression. L'interface s'en tient à ce qu'elle sait.
+ */
 export interface Progress {
   entryId: string
   /** Identifiant d'épisode pour une série, absent pour un film. */
   episodeId?: string
   seconds: number
+  /** Zéro quand la durée n'est pas connue — voir ci-dessus. */
   duration: number
   updatedAt: number
 }

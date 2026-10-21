@@ -1,6 +1,7 @@
-import { Suspense, lazy, useEffect } from 'react'
+import { Suspense, lazy, useEffect, type ReactNode } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'motion/react'
+import { transitionsDeVue } from '@/lib/transitions'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { Home } from '@/pages/Home'
@@ -14,6 +15,12 @@ const Inscription = lazy(() => import('@/pages/Compte').then((m) => ({ default: 
 const MonCompte = lazy(() => import('@/pages/Compte').then((m) => ({ default: m.MonCompte })))
 const Watch = lazy(() => import('@/pages/Watch').then((m) => ({ default: m.Watch })))
 const NotFound = lazy(() => import('@/pages/NotFound').then((m) => ({ default: m.NotFound })))
+
+/** Le fondu entre pages, sauf là où le navigateur fait mieux. */
+function Enchainement({ children }: { children: ReactNode }) {
+  if (transitionsDeVue) return <>{children}</>
+  return <AnimatePresence mode="wait">{children}</AnimatePresence>
+}
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -44,7 +51,15 @@ export function App() {
       <ScrollToTop />
       {!bare && <Navbar />}
       <Suspense fallback={<RouteFallback />}>
-        <AnimatePresence mode="wait">
+        {/*
+          Deux régimes, et ils ne peuvent pas cohabiter. `mode="wait"` retient
+          l'ancienne page le temps de sa sortie, soit un quart de seconde
+          pendant lequel la nouvelle n'existe pas encore — or une transition
+          de vue a besoin des deux au même instant pour les relier. Là où le
+          navigateur sait animer, on lui laisse la main ; ailleurs, le fondu
+          de motion reste.
+        */}
+        <Enchainement>
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<Home />} />
             <Route path="/catalogue" element={<Browse />} />
@@ -57,7 +72,7 @@ export function App() {
             <Route path="/lecture/:id" element={<Watch />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AnimatePresence>
+        </Enchainement>
       </Suspense>
       {!bare && <Footer />}
     </>

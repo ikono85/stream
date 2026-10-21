@@ -7,6 +7,9 @@ import {
   changeMotDePasse, connexion, deconnexion, inscription, supprimeMonCompte,
   ErreurCompte,
 } from '@/lib/compte'
+import {
+  contenuLocal, vautLaPeine, verseDansLeCompte, type ContenuLocal,
+} from '@/lib/reprise-locale'
 
 /**
  * LES COMPTES, CÔTÉ ÉCRAN
@@ -43,6 +46,79 @@ function Erreur({ message }: { message: string | null }) {
   )
 }
 
+/**
+ * Après une connexion réussie : ce navigateur gardait-il quelque chose ?
+ *
+ * Sans cette étape, quelqu'un qui s'est servi du site puis s'inscrit repart
+ * de zéro. C'est discret, agaçant, et c'est le genre de détail qui fait
+ * renoncer à créer un compte.
+ */
+function Reprendre({ contenu, onFini }: { contenu: ContenuLocal; onFini: () => void }) {
+  const [enCours, setEnCours] = useState(false)
+  const [bilan, setBilan] = useState<{ titres: number; reprises: number } | null>(null)
+
+  const titres = contenu.maListe.length
+  const reprises = contenu.progression.length
+
+  async function reprends() {
+    setEnCours(true)
+    const resultat = await verseDansLeCompte(contenu)
+    setBilan(resultat)
+    setEnCours(false)
+  }
+
+  if (bilan) {
+    return (
+      <Cadre titre="C'est repris" sous="Votre compte a récupéré ce que ce navigateur gardait.">
+        <p className="mt-6 text-sm leading-relaxed text-haze-300">
+          {bilan.titres > 0 && `${bilan.titres} titre${bilan.titres > 1 ? 's' : ''} ajouté${bilan.titres > 1 ? 's' : ''} à votre liste. `}
+          {bilan.reprises > 0 && `${bilan.reprises} lecture${bilan.reprises > 1 ? 's' : ''} en cours reprise${bilan.reprises > 1 ? 's' : ''}. `}
+          {bilan.titres === 0 && bilan.reprises === 0 && 'Votre compte avait déjà tout.'}
+        </p>
+        <button type="button" onClick={onFini} className={`${bouton} mt-7`}>Continuer</button>
+      </Cadre>
+    )
+  }
+
+  return (
+    <Cadre
+      titre="Reprendre votre liste ?"
+      sous="Ce navigateur gardait des choses avant que vous ayez un compte."
+    >
+      <ul className="mt-6 space-y-1.5 text-sm text-haze-300">
+        {titres > 0 && (
+          <li className="flex items-center gap-2">
+            <Icon name="check" size={15} className="shrink-0 text-lamp-500" />
+            {titres} titre{titres > 1 ? 's' : ''} dans votre liste
+          </li>
+        )}
+        {reprises > 0 && (
+          <li className="flex items-center gap-2">
+            <Icon name="play" size={15} className="shrink-0 text-lamp-500" />
+            {reprises} lecture{reprises > 1 ? 's' : ''} en cours
+          </li>
+        )}
+      </ul>
+
+      <p className="mt-4 text-xs leading-relaxed text-haze-400">
+        Les ajouter à votre compte les rendra disponibles sur vos autres appareils. Rien n'est
+        effacé de ce navigateur.
+      </p>
+
+      <button type="button" onClick={() => void reprends()} disabled={enCours} className={`${bouton} mt-6`}>
+        {enCours ? 'Reprise…' : 'Oui, les reprendre'}
+      </button>
+      <button
+        type="button"
+        onClick={onFini}
+        className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-full text-sm text-haze-400 transition-colors hover:text-paper"
+      >
+        Non merci, repartir de zéro
+      </button>
+    </Cadre>
+  )
+}
+
 /* ---------- connexion ---------- */
 
 export function Connexion() {
@@ -52,6 +128,12 @@ export function Connexion() {
   const [motDePasse, setMotDePasse] = useState('')
   const [erreur, setErreur] = useState<string | null>(null)
   const [envoi, setEnvoi] = useState(false)
+  const [aReprendre, setAReprendre] = useState<ContenuLocal | null>(null)
+
+  async function termine() {
+    await rafraichisCompte()
+    navigate('/')
+  }
 
   async function envoie(e: FormEvent) {
     e.preventDefault()
@@ -59,13 +141,19 @@ export function Connexion() {
     setErreur(null)
     try {
       await connexion(nom, motDePasse)
-      await rafraichisCompte()
-      navigate('/')
+      /* La proposition de reprise vient avant le rafraîchissement : tant
+         qu'on n'a pas basculé sur le magasin du compte, le contenu local est
+         encore lisible. */
+      const local = await contenuLocal()
+      if (vautLaPeine(local)) { setAReprendre(local); return }
+      await termine()
     } catch (erreurRecue) {
       setErreur(erreurRecue instanceof ErreurCompte ? erreurRecue.message : 'La connexion a échoué.')
       setEnvoi(false)
     }
   }
+
+  if (aReprendre) return <Reprendre contenu={aReprendre} onFini={() => void termine()} />
 
   return (
     <Cadre titre="Se connecter" sous="Pour retrouver votre liste et vos reprises sur cet appareil.">
@@ -106,6 +194,12 @@ export function Inscription() {
   const [motDePasse, setMotDePasse] = useState('')
   const [erreur, setErreur] = useState<string | null>(null)
   const [envoi, setEnvoi] = useState(false)
+  const [aReprendre, setAReprendre] = useState<ContenuLocal | null>(null)
+
+  async function termine() {
+    await rafraichisCompte()
+    navigate('/')
+  }
 
   async function envoie(e: FormEvent) {
     e.preventDefault()
@@ -113,13 +207,16 @@ export function Inscription() {
     setErreur(null)
     try {
       await inscription(nom, motDePasse)
-      await rafraichisCompte()
-      navigate('/')
+      const local = await contenuLocal()
+      if (vautLaPeine(local)) { setAReprendre(local); return }
+      await termine()
     } catch (erreurRecue) {
       setErreur(erreurRecue instanceof ErreurCompte ? erreurRecue.message : "L'inscription a échoué.")
       setEnvoi(false)
     }
   }
+
+  if (aReprendre) return <Reprendre contenu={aReprendre} onFini={() => void termine()} />
 
   if (!inscriptionOuverte) {
     return (
