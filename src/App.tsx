@@ -8,6 +8,7 @@ import { Home } from '@/pages/Home'
 import { useRadio } from '@/hooks/radioContext'
 import { RadioBar } from '@/components/RadioBar'
 import { useLibrary } from '@/hooks/libraryContext'
+import { InstallGuide } from '@/components/InstallGuide'
 
 const Radio = lazy(() => import('@/pages/Radio').then((m) => ({ default: m.Radio })))
 
@@ -88,6 +89,7 @@ export function App() {
       </Suspense>
       {!bare && <Footer />}
       <RadioBar />
+      <InstallGuide />
     </div>
   )
 }

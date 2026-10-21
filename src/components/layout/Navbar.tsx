@@ -7,6 +7,7 @@ import { SearchOverlay } from '@/components/SearchOverlay'
 import { useLibrary } from '@/hooks/libraryContext'
 import { deconnexion } from '@/lib/compte'
 import { SITE, PROFILE_TINTS } from '@/config'
+import { openInstallGuide } from '@/lib/install-guide'
 
 /* Les trois rayons que HeiwaStream distingue — /catalog/movie, /catalog/tv
    et /catalog/anime — plus ce qui est à nous. Un animé est une série pour
@@ -176,6 +177,7 @@ export function Navbar() {
                         avec l'arrivée des comptes — proposer les deux revenait
                         à demander aux gens de choisir entre deux notions qui
                         font la même chose. */}
+                    <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); openInstallGuide() }} className="mb-2 block min-h-11 w-full rounded-lg px-2 py-2 text-left text-sm font-medium text-lamp-500 hover:bg-ink-800">Installer l’application</button>
                     {compte ? (
                       <>
                         <p className="px-2 pt-1 text-xs text-haze-400">Connecté</p>
@@ -284,6 +286,7 @@ export function Navbar() {
                   {link.label}
                 </NavLink>
               ))}
+              <button type="button" onClick={() => { setMenuOpen(false); openInstallGuide() }} className="block min-h-11 w-full rounded-lg px-3 py-3 text-left font-wide text-base font-semibold text-lamp-500 hover:bg-ink-700">Installer l’application</button>
               <NavLink
                 to="/catalogue"
                 onClick={() => setMenuOpen(false)}

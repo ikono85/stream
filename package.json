@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "test:pwa": "node --test tests/pwa.test.mjs",
     "test:audit": "node --test tests/audit.test.mjs",
     "test:radio": "node --test tests/radio.test.mjs",
     "dev": "vite",

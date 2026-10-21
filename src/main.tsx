@@ -5,6 +5,9 @@ import { App } from '@/App'
 import { LibraryProvider } from '@/hooks/library'
 import { RadioProvider } from '@/hooks/radio'
 import '@/index.css'
+import { prepareInstallation } from '@/lib/install'
+
+prepareInstallation()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('#root is missing from index.html')

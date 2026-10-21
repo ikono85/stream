@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Lucarne",
+  "short_name": "Lucarne",
+  "description": "Films, séries, animés et radio dans votre Lucarne.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#04070F",
+  "theme_color": "#04070F",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

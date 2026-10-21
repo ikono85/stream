@@ -1,0 +1,65 @@
+.install-guide { width: min(560px, calc(100% - 24px)); max-height: calc(100dvh - 24px); margin: auto; padding: 0; border: 1px solid #2c3a57; border-radius: 24px; color: #edf0f6; background: radial-gradient(ellipse at 0 0, #292018 0, transparent 48%), #090e1a; box-shadow: 0 32px 120px #000b; overflow-y: auto; overscroll-behavior: contain; }
+.install-guide::backdrop { background: #02050bd9; backdrop-filter: blur(9px); }
+.install-guide-inner { position: relative; padding: 30px 30px 22px; }
+.install-guide button { cursor: pointer; font: inherit; }
+.install-guide button:focus-visible, .install-guide input:focus-visible { outline: 2px solid #ffcb6b; outline-offset: 3px; }
+.install-guide-close { position: absolute; right: 13px; top: 13px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #aab5cc; background: #ffffff08; }
+.install-guide-close:hover { background: #ffffff15; color: white; }
+.install-eyebrow { color: #f0a63c; font-size: 10px; font-weight: 700; letter-spacing: .2em; padding-right: 25px; }
+.install-guide h2 { margin-top: 15px; font-size: clamp(26px, 5vw, 35px); font-weight: 800; line-height: 1.08; letter-spacing: -.04em; }
+.install-guide h2 span { color: #aab5cc; }
+.install-intro { margin: 13px 0 19px; max-width: 38ch; font-size: 13px; line-height: 1.65; color: #aab5cc; }
+.install-devices { display: flex; gap: 4px; padding: 4px; border: 1px solid #1e283e; border-radius: 12px; background: #04070f80; }
+.install-devices button { min-height: 38px; flex: 1; border-radius: 8px; color: #aab5cc; font-size: 12px; }
+.install-devices button[aria-pressed="true"] { background: #202b40; color: #edf0f6; box-shadow: 0 2px 6px #0005; }
+.install-demo { position: relative; height: 218px; overflow: hidden; margin-top: 15px; border-radius: 16px; border: 1px solid #ffffff0c; background: radial-gradient(ellipse at 50% 100%, #4a34213b, transparent 70%), #050914; }
+.install-demo-label { position: absolute; left: 13px; top: 10px; color: #76839d; font-size: 9px; letter-spacing: .05em; }
+.install-browser { position: absolute; width: 84%; height: 167px; top: 36px; left: 8%; border-radius: 10px; border: 1px solid #33415c; background: #0c1220; box-shadow: 0 12px 25px #0008; overflow: hidden; }
+.install-browser-bar { display: flex; height: 30px; align-items: center; gap: 10px; padding: 0 10px; border-bottom: 1px solid #27334b; background: #172033; }
+.install-browser-dots { font-size: 6px; color: #63718c; white-space: nowrap; }
+.install-browser-address { display: flex; flex: 1; align-items: center; justify-content: space-between; height: 21px; padding: 0 7px 0 10px; border-radius: 5px; background: #080d18; color: #95a3bb; font-size: 8px; }
+.install-browser-address > span { display: grid; place-items: center; width: 25px; height: 24px; border-radius: 5px; }
+.install-highlight { color: #ffcb6b; background: #f0a63c20; animation: install-beacon 1.6s ease-in-out infinite; }
+.install-browser-content { position: relative; height: calc(100% - 30px); }
+.install-mini-brand { display: flex; align-items: center; gap: 4px; padding: 12px; font-size: 8px; font-weight: 800; letter-spacing: .07em; }
+.install-mini-brand img { width: 16px; height: 16px; }
+.install-mini-cards { display: flex; gap: 8px; margin: 0 12px; opacity: .6; }
+.install-mini-cards span { flex: 1; height: 90px; border-radius: 4px; background: linear-gradient(145deg, #775f45, #151b29 65%); }
+.install-mini-cards span:nth-child(2) { background: linear-gradient(145deg, #375a70, #121a28 65%); }
+.install-mini-cards span:nth-child(3) { background: linear-gradient(145deg, #754246, #151727 65%); }
+.install-mini-cards span:nth-child(4) { background: linear-gradient(145deg, #3f6659, #0c1724 65%); }
+.install-demo-hint { position: absolute; top: 10px; right: 10px; padding: 7px 9px; border: 1px solid #f0a63c50; border-radius: 6px; font-size: 9px; background: #161c2cf5; color: #ffcb6b; }
+.install-demo-hint span { margin-left: 7px; }
+.install-cursor { position: absolute; width: 21px; height: 29px; z-index: 4; pointer-events: none; filter: drop-shadow(0 3px 3px #0008); }
+.install-cursor-0 { top: -16px; right: 18px; animation: install-pointer 3.5s ease-in-out infinite; }
+.install-cursor-1 { top: 106px; left: 60%; animation: install-pointer 3.5s ease-in-out infinite; }
+.install-confirm { position: absolute; left: 50%; top: 5px; transform: translateX(-50%); width: 181px; padding: 12px; display: grid; grid-template-columns: 32px 1fr; gap: 5px 8px; border: 1px solid #4c5870; border-radius: 10px; background: #182133; box-shadow: 0 8px 35px #000b; animation: install-appear .3s ease-out; }
+.install-confirm img { grid-row: span 2; width: 32px; height: 32px; border-radius: 8px; }
+.install-confirm strong { font-size: 12px; }.install-confirm > span { font-size: 8px; color: #b5bfd1; }
+.install-fake-button { grid-column: 1 / -1; margin-top: 7px; padding: 6px; border-radius: 20px; color: #04070f; background: #f0a63c; font-size: 9px; text-align: center; font-weight: 700; }
+.install-success { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: radial-gradient(ellipse at center, #303448, #0c1220 75%); animation: install-appear .45s ease-out; }
+.install-app-glow { position: relative; margin-bottom: 4px; }.install-app-glow img { width: 55px; height: 55px; border: 1px solid #66718a; border-radius: 13px; box-shadow: 0 0 30px #f0a63c30; }
+.install-app-glow > span { position: absolute; right: -5px; top: -4px; display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; background: #f0a63c; color: #04070f; font-size: 12px; }
+.install-success strong { font-size: 11px; }.install-success > span { color: #aab5cc; font-size: 8px; }
+.install-demo-mobile .install-browser { width: 180px; left: calc(50% - 90px); top: 30px; height: 180px; border-radius: 17px 17px 0 0; border-width: 3px; }
+.install-demo-mobile .install-browser-dots { display: none; }.install-demo-mobile .install-mini-cards { gap: 5px; }.install-demo-mobile .install-mini-cards span { min-width: 40px; }
+.install-demo-mobile .install-confirm { width: 151px; padding: 10px; }.install-demo-mobile .install-demo-hint { font-size: 8px; padding: 5px; }
+.install-step-caption { display: flex; gap: 12px; margin-top: 18px; min-height: 70px; }
+.install-step-number { flex-shrink: 0; width: 27px; padding-top: 2px; color: #f0a63c; font-size: 13px; font-weight: 700; }
+.install-step-caption h3 { font-size: 14px; font-weight: 700; line-height: 1.4; }.install-step-caption p { color: #9aa7bf; font-size: 12px; line-height: 1.6; margin-top: 4px; }
+.install-playback { display: flex; justify-content: space-between; align-items: center; margin-top: 1px; }
+.install-step-dots { display: flex; gap: 3px; }.install-step-dots button { width: 34px; height: 36px; display: grid; place-items: center; }.install-step-dots span { display: block; width: 24px; height: 3px; border-radius: 4px; background: #2c3a57; }.install-step-dots [aria-pressed="true"] span { background: #f0a63c; }
+.install-pause { min-height: 36px; display: flex; align-items: center; gap: 6px; color: #aab5cc; font-size: 10px !important; padding: 0 6px; }
+.install-details-toggle { min-height: 36px; text-decoration: underline; text-underline-offset: 3px; color: #aab5cc; font-size: 11px !important; }
+.install-details { padding: 12px 14px; margin-bottom: 13px; border: 1px solid #27334b; border-radius: 10px; color: #aab5cc; font-size: 12px; line-height: 1.7; }.install-details ol { padding-left: 16px; list-style: decimal; }.install-details li + li, .install-details p { margin-top: 8px; }
+.install-message { color: #ffcb6b; font-size: 12px; margin: 10px 0; }
+.install-actions { display: flex; gap: 10px; margin-top: 8px; }.install-primary { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; border-radius: 12px; background: #f0a63c; color: #04070f; font-size: 13px !important; font-weight: 700 !important; flex: 1; }.install-primary:hover { background: #ffcb6b; }.install-primary:disabled { opacity: .6; }.install-later { padding: 0 18px; min-height: 48px; border: 1px solid #2c3a57; border-radius: 12px; font-size: 12px !important; color: #aab5cc; }
+.install-never { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; margin-top: 8px; font-size: 11px; color: #aab5cc; cursor: pointer; }.install-never input { width: 15px; height: 15px; accent-color: #f0a63c; }
+.install-footnote { color: #76839d; font-size: 10px; text-align: center; line-height: 1.5; }
+.install-demo-paused .install-cursor, .install-demo-paused .install-highlight { animation-play-state: paused !important; }
+.install-demo-paused .install-confirm, .install-demo-paused .install-success { animation: none; }
+@keyframes install-pointer { 0% { transform: translate(-65px, 70px); opacity: 0; } 15% { opacity: 1; } 48%, 64% { transform: translate(0, 0); opacity: 1; } 56% { transform: translate(0, 0) scale(.8); } 85%, 100% { transform: translate(0, 0); opacity: 0; } }
+@keyframes install-beacon { 50% { box-shadow: 0 0 0 6px #f0a63c10; } }
+@keyframes install-appear { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 480px) { .install-guide-inner { padding: 24px 18px 18px; }.install-demo { height: 196px; }.install-browser { top: 33px; height: 151px; }.install-demo-mobile .install-browser { top: 27px; height: 161px; }.install-step-caption { min-height: 83px; margin-top: 15px; }.install-guide h2 { font-size: 28px; }.install-intro { font-size: 12px; margin-bottom: 14px; }.install-later { padding: 0 12px; } }
+@media (prefers-reduced-motion: reduce) { .install-demo * { animation: none !important; }.install-cursor { display: none; } }

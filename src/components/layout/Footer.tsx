@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Mark } from '@/components/layout/Mark'
 import { SITE } from '@/config'
+import { InstallApp } from '@/components/InstallApp'
 
 export function Footer() {
   return (
@@ -14,6 +15,7 @@ export function Footer() {
                 {SITE.name}
               </span>
             </div>
+            <InstallApp />
           </div>
 
           <nav aria-label="Pied de page" className="flex gap-10 text-sm">

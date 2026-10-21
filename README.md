@@ -1,5 +1,31 @@
 # Lucarne
 
+## Application installable
+
+Un tutoriel animé apparaît après quatre secondes sur l'accueil, sans interrompre
+une lecture ou une autre fenêtre. Il détecte l'appareil, propose trois étapes,
+un mode pause et des étapes fixes quand les animations sont réduites.
+« Plus tard » le reporte de trois jours ; « Ne plus afficher » reste mémorisé
+dans ce navigateur. L'installation de l'application supprime aussi l'invitation.
+Le guide peut toujours être rouvert depuis le menu de compte, le menu mobile
+ou le bouton du pied de page.
+
+Lucarne peut être installée depuis un navigateur compatible et s'ouvrir dans
+sa propre fenêtre, avec une icône dédiée. Le pied de page propose l'installation
+quand le navigateur la permet, sinon un petit guide pour l'ajout à l'écran d'accueil.
+Sur iPhone/iPad : Safari, Partager, puis Sur l'écran d'accueil.
+
+La mise en ligne doit utiliser HTTPS. `localhost` permet les essais sur le même
+ordinateur ; une adresse IP du réseau en HTTP sur un téléphone ne suffit pas.
+Le serveur Node doit rester disponible pour les API : installer Lucarne ne le remplace pas.
+
+Sans réseau, une page de secours permet de réessayer. Les vidéos, la radio et
+le catalogue nécessitent Internet ; aucun média ni compte n'est stocké dans
+le cache du service worker. Ce cache conserve seulement `offline.html` et
+ne concerne pas les API ni l'administration.
+
+`npm run test:pwa` vérifie les icônes et les règles du service worker.
+
 ## Corrections de fiabilité (audit, points 3 à 8)
 
 - Changer ou réinitialiser un mot de passe révoque les anciennes sessions membres.
