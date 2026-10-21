@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import type { PlayerHandle } from '@/player/Player'
+import type { PlayerHandle } from '@/player/Embed'
 import { syncUrl, type ClientMessage, type Member, type ServerMessage } from '@/sync/protocol'
 
 export type RoomStatus = 'off' | 'connecting' | 'open' | 'lost'

@@ -23,5 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 
+# La clé de l'API HeiwaStream. Ne jamais versionner.
+.env
+.env.local
+
+# Cache des fiches rassemblées par le proxy.
+.cache/
+
+# Journal d'audit de l'administration.
+donnees/
+
 # Mock-up posters: distributors' artwork, not ours to redistribute.
 public/affiches/

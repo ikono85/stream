@@ -1,12 +1,28 @@
 import { Link } from 'react-router-dom'
 import { PageTransition } from '@/components/layout/PageTransition'
 import { PosterCard, PosterSkeleton } from '@/components/Card'
+import { Panne } from '@/components/RangeeDistante'
 import { useLibrary } from '@/hooks/libraryContext'
-import { byId } from '@/data/catalog'
+import { useRemote } from '@/hooks/useRemote'
+import { fichesDe } from '@/lib/heiwa'
 
+/**
+ * La liste ne garde que des identifiants : les titres sont redemandés à
+ * chaque visite. Les fiches étant gardées une semaine par le proxy, c'est
+ * gratuit passé la première fois — et toujours à jour, ce qu'un titre
+ * recopié dans le stockage local ne serait pas.
+ */
 export function MyList() {
   const { ready, myList } = useLibrary()
-  const entries = myList.map(byId).filter((e) => e !== undefined)
+  const clef = myList.join(',')
+
+  const titres = useRemote(
+    (signal) => (myList.length ? fichesDe(myList, signal) : Promise.resolve([])),
+    [clef],
+  )
+
+  const entries = titres.data ?? []
+  const charge = !ready || (titres.loading && !titres.data)
 
   return (
     <PageTransition>
@@ -15,16 +31,22 @@ export function MyList() {
           Ma liste
         </h1>
         <p className="mt-2 text-sm text-haze-400 nums-tabular">
-          {ready ? `${entries.length} ${entries.length === 1 ? 'titre' : 'titres'}` : 'Chargement'}
+          {charge ? 'Chargement' : `${entries.length} ${entries.length === 1 ? 'titre' : 'titres'}`}
         </p>
 
-        {!ready && (
+        {charge && myList.length > 0 && (
           <div className="mt-8 flex flex-wrap gap-4">
-            {Array.from({ length: 6 }, (_, i) => <PosterSkeleton key={i} />)}
+            {Array.from({ length: Math.min(myList.length, 6) }, (_, i) => <PosterSkeleton key={i} />)}
           </div>
         )}
 
-        {ready && entries.length === 0 && (
+        {titres.error && !titres.data && (
+          <div className="mt-14">
+            <Panne message={titres.error.explication} onRetry={titres.recharge} />
+          </div>
+        )}
+
+        {ready && myList.length === 0 && (
           <div className="mt-14 max-w-[46ch]">
             <p className="font-wide text-lg font-bold text-paper">Votre liste est vide</p>
             <p className="mt-2 text-sm leading-relaxed text-haze-400">
@@ -40,7 +62,7 @@ export function MyList() {
           </div>
         )}
 
-        {ready && entries.length > 0 && (
+        {!charge && entries.length > 0 && (
           <div className="mt-8 flex flex-wrap gap-3 lg:gap-4">
             {entries.map((entry) => <PosterCard key={entry.id} entry={entry} />)}
           </div>

@@ -1,36 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Icon } from '@/components/Icon'
 import { Art } from '@/components/Art'
 import { useLibrary } from '@/hooks/libraryContext'
 import { bannerArt } from '@/lib/poster'
-import { rating, shape } from '@/lib/format'
-import { hasVideo } from '@/data/catalog'
+import { image, TAILLES } from '@/lib/images'
+import { rating, shape, langues } from '@/lib/format'
 import type { Entry } from '@/types'
 
 /** How long one title holds the stage. */
 const DWELL = 9000
-
-/**
- * Only fetch the background loop when it is clearly welcome: a wide screen,
- * motion allowed, and the browser not asking us to save data.
- */
-function useBackgroundVideo(src: string | undefined, reduced: boolean | null): boolean {
-  const [allowed, setAllowed] = useState(false)
-
-  useEffect(() => {
-    if (!src || reduced) return
-    const wide = window.matchMedia('(min-width: 1024px)')
-    const conn = (navigator as { connection?: { saveData?: boolean } }).connection
-    if (!wide.matches || conn?.saveData) return
-    /* Let the page settle and the poster paint before pulling a video down. */
-    const id = window.setTimeout(() => setAllowed(true), 2200)
-    return () => window.clearTimeout(id)
-  }, [src, reduced])
-
-  return allowed
-}
 
 /**
  * Advances through the spotlight on its own, and knows when not to: reduced
@@ -62,25 +42,13 @@ function useRotation(count: number, reduced: boolean | null, held: boolean) {
 
 /**
  * One slide's artwork. Mounted under its own key inside AnimatePresence, so
- * each title gets its own fresh loop state and the outgoing one keeps its
- * image until the crossfade is over.
+ * the outgoing one keeps its image until the crossfade is over.
  */
 function Backdrop({ entry, reduced, eager }: {
   entry: Entry
   reduced: boolean | null
   eager: boolean
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const showVideo = useBackgroundVideo(entry.heroVideo, reduced)
-  const [videoReady, setVideoReady] = useState(false)
-
-  useEffect(() => {
-    if (!showVideo) return
-    const el = videoRef.current
-    if (!el) return
-    el.play().catch(() => setVideoReady(false))
-  }, [showVideo])
-
   return (
     <motion.div
       className="grain absolute inset-0 -z-10"
@@ -90,30 +58,27 @@ function Backdrop({ entry, reduced, eager }: {
       transition={{ duration: reduced ? 0 : 0.95, ease: [0.22, 1, 0.36, 1] }}
     >
       <Art
-        src={entry.backdrop}
+        src={image(entry.backdropPath, TAILLES.fondLarge)}
         fallback={bannerArt(entry.id)}
         alt=""
         fetchPriority={eager ? 'high' : 'auto'}
         decoding="async"
         className="h-full w-full object-cover"
       />
-      {showVideo && entry.heroVideo && (
-        <video
-          ref={videoRef}
-          src={entry.heroVideo}
-          muted
-          loop
-          playsInline
-          preload="none"
-          tabIndex={-1}
-          aria-hidden="true"
-          onPlaying={() => setVideoReady(true)}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
-            videoReady ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
-      )}
     </motion.div>
+  )
+}
+
+export function HeroSkeleton() {
+  return (
+    <section className="relative min-h-[62vh] overflow-hidden bg-ink-900 sm:min-h-[70vh] lg:min-h-[80vh]">
+      <div className="gutter mx-auto flex min-h-[62vh] max-w-[90rem] flex-col justify-end pb-10 pt-28 sm:min-h-[70vh] lg:min-h-[80vh] lg:pb-16">
+        <div className="skeleton h-14 w-[min(32rem,80%)] rounded-lg" />
+        <div className="skeleton mt-5 h-4 w-64 rounded" />
+        <div className="skeleton mt-4 h-16 w-[min(40rem,90%)] rounded" />
+        <div className="skeleton mt-7 h-12 w-48 rounded-full" />
+      </div>
+    </section>
   )
 }
 
@@ -132,13 +97,12 @@ export function Hero({ entries }: { entries: Entry[] }) {
     const next = slides[(index + 1) % slides.length]
     if (!next || slides.length < 2) return
     const img = new Image()
-    img.src = next.backdrop ?? bannerArt(next.id)
+    img.src = image(next.backdropPath, TAILLES.fondLarge) ?? bannerArt(next.id)
   }, [index, slides])
 
   if (!entry) return null
 
   const saved = inList(entry.id)
-  const playable = hasVideo(entry)
 
   const step = (i: number) => ({
     initial: { opacity: 0, y: reduced ? 0 : 16 },
@@ -151,10 +115,11 @@ export function Hero({ entries }: { entries: Entry[] }) {
   })
 
   const meta = [
-    String(entry.year),
+    entry.year > 0 ? String(entry.year) : null,
     shape(entry),
-    entry.rating > 0 ? `${rating(entry.rating)}/10` : null,
-    entry.genres.slice(0, 2).join(', '),
+    entry.rating !== undefined && entry.rating > 0 ? `${rating(entry.rating)}/10` : null,
+    entry.quality,
+    entry.languages.length > 0 ? langues(entry.languages) : null,
   ].filter(Boolean) as string[]
 
   return (
@@ -188,11 +153,11 @@ export function Hero({ entries }: { entries: Entry[] }) {
               {...step(0)}
               className="font-wide text-[clamp(2.1rem,7vw,4.6rem)] font-extrabold leading-[0.95] tracking-[-0.015em] text-paper"
             >
-              {/* A title treatment, when the import found one, carries the
-                  film's own lettering; the text stays as its alt. */}
-              {entry.logo ? (
+              {/* Le lettrage du titre, quand la fiche en porte un : c'est
+                  l'image du film, et le texte reste son alternative. */}
+              {entry.logoPath ? (
                 <img
-                  src={entry.logo}
+                  src={image(entry.logoPath, TAILLES.logo)}
                   alt={entry.title}
                   className="h-auto max-h-24 w-auto max-w-[min(100%,34rem)] object-contain object-left lg:max-h-32"
                 />
@@ -201,38 +166,36 @@ export function Hero({ entries }: { entries: Entry[] }) {
               )}
             </motion.h1>
 
+            {entry.tagline && (
+              <motion.p {...step(1)} className="mt-3 font-wide text-sm italic text-lamp-500">
+                {entry.tagline}
+              </motion.p>
+            )}
+
             <motion.p
-              {...step(1)}
+              {...step(2)}
               className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-haze-300 nums-tabular"
             >
               {meta.map((m) => <span key={m}>{m}</span>)}
             </motion.p>
 
-            <motion.p
-              {...step(2)}
-              className="mt-4 max-w-[52ch] text-[0.95rem] leading-relaxed text-haze-300 line-clamp-3 sm:text-base"
-            >
-              {entry.synopsis}
-            </motion.p>
+            {entry.synopsis && (
+              <motion.p
+                {...step(3)}
+                className="mt-4 max-w-[52ch] text-[0.95rem] leading-relaxed text-haze-300 line-clamp-3 sm:text-base"
+              >
+                {entry.synopsis}
+              </motion.p>
+            )}
 
-            <motion.div {...step(3)} className="mt-7 flex flex-wrap items-center gap-3">
-              {playable ? (
-                <Link
-                  to={`/lecture/${entry.id}`}
-                  className="inline-flex h-12 items-center gap-2.5 rounded-full bg-lamp-500 px-7 font-semibold text-ink-950 transition-[background-color,box-shadow] hover:bg-lamp-400 hover:glow-lamp"
-                >
-                  <Icon name="play" size={19} />
-                  Regarder
-                </Link>
-              ) : (
-                <Link
-                  to={`/titre/${entry.id}`}
-                  className="inline-flex h-12 items-center gap-2.5 rounded-full bg-lamp-500 px-7 font-semibold text-ink-950 transition-[background-color,box-shadow] hover:bg-lamp-400 hover:glow-lamp"
-                >
-                  <Icon name="info" size={19} />
-                  Voir la fiche
-                </Link>
-              )}
+            <motion.div {...step(4)} className="mt-7 flex flex-wrap items-center gap-3">
+              <Link
+                to={`/lecture/${entry.id}`}
+                className="inline-flex h-12 items-center gap-2.5 rounded-full bg-lamp-500 px-7 font-semibold text-ink-950 transition-[background-color,box-shadow] hover:bg-lamp-400 hover:glow-lamp"
+              >
+                <Icon name="play" size={19} />
+                Regarder
+              </Link>
 
               <button
                 type="button"
@@ -243,15 +206,13 @@ export function Hero({ entries }: { entries: Entry[] }) {
                 {saved ? 'Dans ma liste' : 'Ma liste'}
               </button>
 
-              {playable && (
-                <Link
-                  to={`/titre/${entry.id}`}
-                  className="inline-flex h-12 items-center gap-2 rounded-full px-4 text-sm text-haze-300 transition-colors hover:text-paper"
-                >
-                  <Icon name="info" size={17} />
-                  Plus d'informations
-                </Link>
-              )}
+              <Link
+                to={`/titre/${entry.id}`}
+                className="inline-flex h-12 items-center gap-2 rounded-full px-4 text-sm text-haze-300 transition-colors hover:text-paper"
+              >
+                <Icon name="info" size={17} />
+                Plus d'informations
+              </Link>
             </motion.div>
           </motion.div>
         </AnimatePresence>

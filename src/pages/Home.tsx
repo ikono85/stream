@@ -1,131 +1,95 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageTransition } from '@/components/layout/PageTransition'
-import { Hero } from '@/components/Hero'
+import { Hero, HeroSkeleton } from '@/components/Hero'
 import { Row } from '@/components/Row'
-import { PosterCard, ResumeCard, PosterSkeleton, ResumeSkeleton } from '@/components/Card'
+import { RangeeDistante, Panne } from '@/components/RangeeDistante'
+import { ResumeCard, ResumeSkeleton } from '@/components/Card'
 import { Icon } from '@/components/Icon'
 import { useLibrary } from '@/hooks/libraryContext'
-import { CATALOG, byId, hasVideo, HAS_ANIME } from '@/data/catalog'
-import { recommend } from '@/lib/recommend'
-import type { Entry } from '@/types'
+import { useRemote } from '@/hooks/useRemote'
+import { calendrier, catalogue, classement, fichesDe, nouveautes } from '@/lib/heiwa'
+import { episodeLabel, jour } from '@/lib/format'
+import { GENRES } from '@/lib/genres'
+import { PLATEFORMES } from '@/lib/plateformes'
 
-const byPopularity = (a: Entry, b: Entry) => b.popularity - a.popularity
-const byRating = (a: Entry, b: Entry) => b.rating - a.rating || b.popularity - a.popularity
-const byYear = (a: Entry, b: Entry) => b.year - a.year || b.popularity - a.popularity
+/** Titres par rangée. Au-delà, on fait défiler pour le plaisir de défiler. */
+const RANGEE = 16
 
-/** Titles in one row. A carousel past this is scrolling for its own sake. */
-const ROW = 16
-/** A genre thinner than this does not deserve a shelf of its own. */
-const GENRE_MIN = 8
-/** Genre rows in total, and how many more appear each time you reach the end. */
-const GENRE_MAX = 10
-const GENRE_STEP = 3
-const GENRE_FIRST = 3
+/** Rangées de genre d'emblée, puis par paquets, à l'approche du bas de page. */
+const GENRES_DEBUT = 2
+const GENRES_PAS = 2
+const GENRES_MAX = 8
 
 /**
- * One shelf per genre, biggest first. Grouping once here beats filtering the
- * whole catalogue inside every row.
+ * Les genres mis en rayon, et dans quel ordre. Pas tous : dix-neuf rangées
+ * de genre feraient dix-neuf appels pour une page qu'on parcourt à moitié.
  */
-function shelvesByGenre(): { genre: string; items: Entry[] }[] {
-  const groups = new Map<string, Entry[]>()
-  for (const entry of CATALOG) {
-    for (const genre of entry.genres) {
-      const list = groups.get(genre)
-      if (list) list.push(entry)
-      else groups.set(genre, [entry])
-    }
-  }
-
-  return [...groups.entries()]
-    .filter(([, list]) => list.length >= GENRE_MIN)
-    .sort((a, b) => b[1].length - a[1].length)
-    .slice(0, GENRE_MAX)
-    .map(([genre, list]) => ({ genre, items: [...list].sort(byPopularity).slice(0, ROW) }))
-}
-
-/**
- * The spotlight: something that actually plays first — the point of the whole
- * thing — then the best-looking artwork the import brought back.
- */
-function spotlight(): Entry[] {
-  const withArt = CATALOG.filter((e) => Boolean(e.backdrop)).sort(byPopularity).slice(0, 4)
-  const playable = CATALOG.filter(hasVideo).sort(byPopularity)[0]
-  const rest = withArt.filter((e) => e.id !== playable?.id)
-  return playable ? [playable, ...rest] : withArt
-}
+const EN_RAYON = ['Action', 'Comédie', 'Science-Fiction', 'Animation', 'Horreur', 'Drame', 'Thriller', 'Documentaire']
 
 export function Home() {
-  const { ready, progress, myList } = useLibrary()
+  const { ready, progress } = useLibrary()
 
-  const featured = useMemo(() => spotlight(), [])
-  const genres = useMemo(() => shelvesByGenre(), [])
-  const playableCount = useMemo(() => CATALOG.filter(hasVideo).length, [])
+  /* Le classement de la semaine sert deux fois : le bandeau et la première
+     rangée. Un seul appel, et les visuels des six titres mis en avant. */
+  const top = useRemote((signal) => classement({ period: 'week', rich: RANGEE }, signal), [])
 
-  const rows = useMemo(() => ({
-    playable: CATALOG.filter(hasVideo).sort(byPopularity),
-    trending: [...CATALOG].sort(byPopularity).slice(0, ROW),
-    /* Anime have their own row below; leaving them here as well would make
-       these two shelves a duplicate of it. */
-    films: CATALOG.filter((e) => e.kind === 'film' && e.origine !== 'anime').sort(byPopularity).slice(0, ROW),
-    series: CATALOG.filter((e) => e.kind === 'serie' && e.origine !== 'anime').sort(byRating).slice(0, ROW),
-    /* Release year, not the import date: ninety titles share one import date,
-       which made the old "Nouveautés" row an arbitrary ninety-way tie. */
-    recent: [...CATALOG].sort(byYear).slice(0, ROW),
-    anime: CATALOG.filter((e) => e.origine === 'anime').sort(byPopularity).slice(0, ROW),
-    short: CATALOG
-      .filter((e) => e.kind === 'film' && (e.runtime ?? 0) > 0 && (e.runtime ?? 0) <= 100)
-      .sort(byRating)
-      .slice(0, ROW),
-  }), [])
-
-  const resumable = useMemo(
-    () => progress
-      .map((p) => ({ p, entry: byId(p.entryId) }))
-      .filter((x): x is { p: typeof progress[number]; entry: NonNullable<ReturnType<typeof byId>> } => Boolean(x.entry))
-      .sort((a, b) => b.p.updatedAt - a.p.updatedAt)
-      .slice(0, 12),
+  /* Les titres commencés, redemandés par identifiant : « ma liste » et la
+     reprise ne gardent que des identifiants, jamais les titres eux-mêmes. */
+  const repris = useMemo(
+    () => [...progress].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 12),
     [progress],
   )
-
-  const suggestions = useMemo(
-    () => recommend(CATALOG, myList, progress),
-    [myList, progress],
+  const idsRepris = useMemo(() => [...new Set(repris.map((p) => p.entryId))], [repris])
+  const clefRepris = idsRepris.join(',')
+  const titresRepris = useRemote(
+    (signal) => (idsRepris.length ? fichesDe(idsRepris, signal) : Promise.resolve([])),
+    [clefRepris],
   )
 
-  /* Twelve carousels mounted at once is a lot of DOM for a page most people
-     scroll halfway down. The genre shelves arrive as they are needed. */
-  const [shownGenres, setShownGenres] = useState(GENRE_FIRST)
-  const sentinel = useRef<HTMLDivElement>(null)
+  const semaine = useRemote((signal) => calendrier({}, signal), [])
+
+  const [genresMontres, setGenresMontres] = useState(GENRES_DEBUT)
+  const sentinelle = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const el = sentinel.current
-    if (!el || shownGenres >= genres.length) return
+    const el = sentinelle.current
+    const total = Math.min(EN_RAYON.length, GENRES_MAX)
+    if (!el || genresMontres >= total) return
     const io = new IntersectionObserver(
-      ([e]) => { if (e?.isIntersecting) setShownGenres((n) => Math.min(n + GENRE_STEP, genres.length)) },
-      { rootMargin: '800px' },
+      ([e]) => { if (e?.isIntersecting) setGenresMontres((n) => Math.min(n + GENRES_PAS, total)) },
+      { rootMargin: '700px' },
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [shownGenres, genres.length])
+  }, [genresMontres])
+
+  /* Une reprise n'a de sens que si son titre a pu être retrouvé. */
+  const reprises = useMemo(() => {
+    const parId = new Map((titresRepris.data ?? []).map((e) => [e.id, e]))
+    return repris
+      .map((p) => ({ p, entry: parId.get(p.entryId) }))
+      .filter((x): x is { p: typeof repris[number]; entry: NonNullable<typeof x.entry> } => Boolean(x.entry))
+  }, [repris, titresRepris.data])
+
+  const prochains = (semaine.data ?? []).slice(0, 8)
+
+  /* Rien du tout : la clé manque, ou HeiwaStream est injoignable. C'est la
+     seule panne qui mérite de remplacer la page, parce qu'il n'y a pas de
+     page sans catalogue. */
+  if (top.error && !top.data) {
+    return (
+      <PageTransition>
+        <div className="gutter mx-auto max-w-[90rem] pb-16 pt-32">
+          <Panne message={top.error.explication} onRetry={top.recharge} />
+        </div>
+      </PageTransition>
+    )
+  }
 
   return (
     <PageTransition>
-      <Hero entries={featured} />
-
-      <p className="gutter mx-auto flex max-w-[90rem] items-start gap-2.5 border-y border-ink-700 bg-ink-900/40 py-3 text-xs leading-relaxed text-haze-400">
-        <Icon name="info" size={15} className="mt-px shrink-0" />
-        <span>
-          Catalogue de démonstration : {playableCount} titres sur {CATALOG.length} se lisent
-          réellement — quatre courts métrages sous licence Creative Commons et une{' '}
-          <Link to="/titre/mire-lucarne" className="text-haze-300 underline underline-offset-2 transition-colors hover:text-paper">
-            mire de test
-          </Link>. Les autres n'ont aucun fichier vidéo associé —{' '}
-          <Link to="/catalogue?lisible=1" className="text-haze-300 underline underline-offset-2 transition-colors hover:text-paper">
-            n'afficher que ce qui se lit
-          </Link>.
-        </span>
-      </p>
+      {top.data && top.data.length > 0 ? <Hero entries={top.data} /> : <HeroSkeleton />}
 
       <div className="mx-auto max-w-[90rem] pb-8">
         {!ready && (
@@ -134,61 +98,127 @@ export function Home() {
           </Row>
         )}
 
-        {ready && resumable.length > 0 && (
+        {ready && reprises.length > 0 && (
           <Row title="Reprendre la lecture">
-            {resumable.map(({ p, entry }) => (
+            {reprises.map(({ p, entry }) => (
               <ResumeCard key={`${p.entryId}-${p.episodeId ?? ''}`} entry={entry} progress={p} />
             ))}
           </Row>
         )}
 
-        <Row title="Disponibles à la lecture" href="/catalogue?lisible=1">
-          {rows.playable.map((entry, i) => (
-            <PosterCard key={entry.id} entry={entry} eager={i < 6} />
-          ))}
-        </Row>
+        <RangeeDistante
+          title="Les plus regardés cette semaine"
+          href="/catalogue"
+          charge={(signal) => classement({ period: 'week', rich: RANGEE }, signal)}
+          deps={[]}
+          eager
+        />
 
-        <Row title={suggestions.personal ? 'Recommandé pour vous' : 'Les mieux notés'} href="/catalogue?tri=note">
-          {!ready
-            ? Array.from({ length: 7 }, (_, i) => <PosterSkeleton key={i} />)
-            : suggestions.items.map((entry) => <PosterCard key={entry.id} entry={entry} />)}
-        </Row>
+        <RangeeDistante
+          title="Ajoutés récemment"
+          href="/catalogue?tri=added"
+          charge={(signal) => nouveautes({ rich: RANGEE }, signal)}
+          deps={[]}
+        />
 
-        <Row title="Tendances du moment" href="/catalogue">
-          {rows.trending.map((entry) => <PosterCard key={entry.id} entry={entry} />)}
-        </Row>
+        <RangeeDistante
+          title="Films populaires"
+          href="/catalogue?type=film"
+          charge={(signal) => catalogue({ famille: 'movie', sort: 'popular', rich: RANGEE }, signal).then((p) => p.entries)}
+          deps={[]}
+        />
 
-        <Row title="Sorties récentes" href="/catalogue?tri=annee">
-          {rows.recent.map((entry) => <PosterCard key={entry.id} entry={entry} />)}
-        </Row>
+        <RangeeDistante
+          title="Séries à découvrir"
+          href="/catalogue?type=serie"
+          charge={(signal) => catalogue({ famille: 'tv', sort: 'popular', rich: RANGEE }, signal).then((p) => p.entries)}
+          deps={[]}
+        />
 
-        <Row title="Films populaires" href={HAS_ANIME ? '/catalogue?type=film&categorie=autre' : '/catalogue?type=film'}>
-          {rows.films.map((entry) => <PosterCard key={entry.id} entry={entry} />)}
-        </Row>
+        <RangeeDistante
+          title="Animés"
+          href="/catalogue?type=anime"
+          charge={(signal) => catalogue({ famille: 'anime', sort: 'popular', rich: RANGEE }, signal).then((p) => p.entries)}
+          deps={[]}
+        />
 
-        <Row title="Séries à découvrir" href={HAS_ANIME ? '/catalogue?type=serie&categorie=autre' : '/catalogue?type=serie'}>
-          {rows.series.map((entry) => <PosterCard key={entry.id} entry={entry} />)}
-        </Row>
+        <RangeeDistante
+          title="Les mieux notés"
+          href="/catalogue?tri=rating"
+          charge={(signal) => catalogue({ sort: 'rating', rich: RANGEE }, signal).then((p) => p.entries)}
+          deps={[]}
+        />
 
-        {HAS_ANIME && rows.anime.length > 0 && (
-          <Row title="Anime" href="/catalogue?categorie=anime">
-            {rows.anime.map((entry) => <PosterCard key={entry.id} entry={entry} />)}
-          </Row>
+        {prochains.length > 0 && (
+          <section className="gutter py-5">
+            <div className="mb-3 flex items-baseline justify-between gap-4">
+              <h2 className="font-wide text-base font-bold text-paper lg:text-lg">
+                <Link to="/calendrier" className="transition-colors hover:text-lamp-500">
+                  Attendus cette semaine
+                </Link>
+              </h2>
+              <Link
+                to="/calendrier"
+                className="shrink-0 text-xs text-haze-400 transition-colors hover:text-paper"
+              >
+                Tout le calendrier
+              </Link>
+            </div>
+            <ul className="divide-y divide-ink-700 border-y border-ink-700">
+              {prochains.map((sortie) => (
+                <li key={`${sortie.id}-${sortie.season}-${sortie.episode}`}>
+                  <Link
+                    to={`/titre/${sortie.id}`}
+                    className="flex items-center gap-4 py-3 transition-colors hover:bg-ink-900/60"
+                  >
+                    <span className="w-24 shrink-0 text-xs text-haze-400 nums-tabular">
+                      {jour(sortie.date)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-paper">{sortie.title}</span>
+                      <span className="mt-0.5 block truncate text-xs text-haze-400">
+                        {episodeLabel(sortie.season, sortie.episode)}
+                        {sortie.episodeTitle ? ` · ${sortie.episodeTitle}` : ''}
+                      </span>
+                    </span>
+                    <Icon name="chevronRight" size={16} className="shrink-0 text-haze-400" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
-        {rows.short.length >= GENRE_MIN && (
-          <Row title="Moins de cent minutes" href="/catalogue?type=film">
-            {rows.short.map((entry) => <PosterCard key={entry.id} entry={entry} />)}
-          </Row>
-        )}
+        {/* Des liens, pas des requêtes : la bande ne coûte rien à l'affichage
+            et mène au catalogue déjà filtré. */}
+        <section className="gutter py-5">
+          <h2 className="font-wide text-base font-bold text-paper lg:text-lg">Par plateforme</h2>
+          <div className="hide-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1">
+            {PLATEFORMES.map((plateforme) => (
+              <Link
+                key={plateforme.id}
+                to={`/catalogue?plateforme=${plateforme.id}`}
+                className="inline-flex h-11 shrink-0 items-center rounded-full border border-ink-600 px-5 text-sm text-haze-300 transition-colors hover:border-lamp-500 hover:text-paper"
+              >
+                {plateforme.nom}
+              </Link>
+            ))}
+          </div>
+        </section>
 
-        {genres.slice(0, shownGenres).map(({ genre, items }) => (
-          <Row key={genre} title={genre} href={`/catalogue?genre=${encodeURIComponent(genre)}`}>
-            {items.map((entry) => <PosterCard key={entry.id} entry={entry} />)}
-          </Row>
+        {EN_RAYON.slice(0, genresMontres).filter((g) => (GENRES as readonly string[]).includes(g)).map((genre) => (
+          <RangeeDistante
+            key={genre}
+            title={genre}
+            href={`/catalogue?genre=${encodeURIComponent(genre)}`}
+            charge={(signal) => catalogue({ genre, sort: 'popular', rich: RANGEE }, signal).then((p) => p.entries)}
+            deps={[genre]}
+          />
         ))}
 
-        {shownGenres < genres.length && <div ref={sentinel} className="h-24" aria-hidden="true" />}
+        {genresMontres < Math.min(EN_RAYON.length, GENRES_MAX) && (
+          <div ref={sentinelle} className="h-24" aria-hidden="true" />
+        )}
       </div>
     </PageTransition>
   )

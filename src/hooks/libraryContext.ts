@@ -1,8 +1,21 @@
 import { createContext, useContext } from 'react'
 import type { Profile, Progress } from '@/types'
+import type { Compte } from '@/lib/compte'
 
 export interface LibraryValue {
   ready: boolean
+
+  /**
+   * Le compte connecté, ou null. Le site est ouvert : sans compte, la liste
+   * et les reprises vivent dans ce navigateur ; avec, elles suivent d'un
+   * appareil à l'autre.
+   */
+  compte: Compte | null
+  /** Vrai tant qu'on ne sait pas encore si quelqu'un est connecté. */
+  compteEnCours: boolean
+  inscriptionOuverte: boolean
+  /** À appeler après une connexion, une inscription ou une déconnexion. */
+  rafraichisCompte: () => Promise<void>
   profiles: Profile[]
   profile: Profile | null
   switchProfile: (id: string) => void

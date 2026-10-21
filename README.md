@@ -1,470 +1,310 @@
 # Lucarne
 
-Une interface de streaming pour une bibliothèque vidéo privée, partagée entre
-proches. React 19, TypeScript, Vite 8, Tailwind 4.
+Une interface de streaming branchée sur le catalogue **HeiwaStream**. React 19,
+TypeScript, Vite 8, Tailwind 4.
 
-Le projet est complet et fonctionne : navigation, catalogue filtrable,
-recherche, fiches détaillées, lecteur vidéo, profils, favoris et reprise de
-lecture. Ce qui n'est **pas** fourni, c'est votre bibliothèque de fichiers — la
-section « Brancher votre bibliothèque » explique comment la raccorder.
+Tout ce que le site affiche vient d'une seule source : l'API de
+[HeiwaStream](https://heiwastream.fr/api) — plus de quarante mille films,
+séries et animés, leurs disponibilités par langue et par qualité, leurs
+saisons épisode par épisode, et le lecteur qui les joue. Aucun fichier vidéo
+n'est hébergé ici, aucune métadonnée n'est saisie à la main, et il n'y a pas
+de catalogue de démonstration : ce que vous voyez est ce que HeiwaStream a.
 
 ---
 
 ## Démarrer
 
-Il faut Node 20 ou plus récent.
+Il faut Node 20 ou plus récent, et une clé d'API.
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173
+cp .env.example .env     # puis renseignez HEIWA_KEY
+npm run dev              # http://localhost:5173
 ```
+
+La clé se crée sur [heiwastream.fr/api?p=cle](https://heiwastream.fr/api?p=cle),
+avec un compte Discord. Elle est gratuite, une par compte, et **ne s'affiche
+qu'une fois** : copiez-la tout de suite. Sans elle, l'API ne répond pas et le
+site affiche « Le catalogue ne répond pas » avec la raison exacte.
 
 Les autres commandes :
 
 ```bash
 npm run build        # construit dans dist/
-npm start            # sert dist/ + les salles partagées (production)
+npm start            # sert dist/ + le proxy + les salles partagées (production)
 npm run preview      # aperçu rapide du build
 npm run typecheck    # vérification des types
 npm run lint         # analyse statique
+npm run admin:motdepasse   # fabrique le mot de passe d'administration
+```
+
+Sous PowerShell, si npm est refusé pour cause de politique d'exécution :
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
 ---
 
-## Ce qui est réellement lisible
+## La clé reste côté serveur
 
-Le catalogue livré contient deux choses très différentes, et l'interface le dit
-partout où c'est utile.
+C'est le point d'architecture le plus important du projet, et il n'est pas
+négociable pour deux raisons indépendantes :
 
-**Lisible.** Quatre courts métrages de la Blender Foundation, sous licence
-Creative Commons, avec leurs vrais titres et leurs vrais génériques : *Big Buck
-Bunny*, *Sintel*, *Tears of Steel*, *Elephants Dream*. Ils sont servis depuis
-l'hébergement public de Google ; si ces adresses changent un jour, la fiche
-affichera une erreur de lecture explicite.
+1. **L'API ne renvoie aucun en-tête CORS.** Un `fetch` depuis la page échoue
+   avant même de partir, quel que soit l'en-tête d'autorisation. Essayer plus
+   fort ne sert à rien : c'est le navigateur qui refuse.
+2. **Une clé dans le bundle est une clé publique.** N'importe qui ouvrant
+   l'onglet Réseau la lirait, et s'en servirait sous votre quota — jusqu'à la
+   suspension.
 
-S'y ajoute une **mire de test** en trois épisodes, générée avec ffmpeg pour ce
-projet. Elle sert à vérifier votre installation : compteur à l'écran pour
-contrôler la reprise, deux qualités pour le sélecteur, deux pistes de
-sous-titres. C'est le premier endroit où aller si quelque chose cloche.
+Le site ne parle donc jamais directement à HeiwaStream. Il parle à
+`/api/hs/…`, un proxy maison qui vit dans `server/heiwa.mjs`, ajoute
+l'autorisation côté serveur, et relaie. En développement il est greffé sur le
+serveur Vite ; en production, sur le serveur Node. `npm run dev` reste la
+seule commande à lancer.
 
-**Non lisible.** Une trentaine de titres inventés, marqués `demo: true`. Ils
-existent pour que la grille, les filtres et la recherche aient de la matière.
-Ni les films ni les personnes citées au générique n'existent, et aucun fichier
-ne leur est associé. L'interface le signale sur chaque fiche concernée.
+Vérifier que la clé n'a pas fui dans le build :
+
+```bash
+npm run build
+grep -r "hs_" dist/     # ne doit rien trouver
+```
+
+---
+
+## Ce que l'API fournit
+
+Huit routes suffisent à tout le site. Le client typé qui les enveloppe est
+dans `src/lib/heiwa.ts`, et c'est le seul fichier de l'application qui
+connaisse la forme des réponses.
+
+| Route | Ce qu'elle donne | Où elle sert |
+| --- | --- | --- |
+| `/catalog/{movie\|tv\|anime}` | Catalogue paginé, filtrable | Catalogue, rangées d'accueil |
+| `/media/{movie\|tv}/{tmdb}` | Affiche, fond, logo, résumé, genres, note, durée, saisons, bande-annonce | Fiche, enrichissement des listes |
+| `/media/{type}/{tmdb}/similar` | Titres proches, visuels compris | « Dans le même esprit » |
+| `/tv/{tmdb}/{saison}` | Épisodes, langues et sources par épisode | Liste des épisodes |
+| `/find/{titre}` | Recherche par titre | Barre de recherche |
+| `/news/{type}` | Les cinquante derniers ajouts | « Ajoutés récemment » |
+| `/top/{type}` | Les cinquante plus regardés | Bandeau, « Les plus regardés » |
+| `/calendar` | Épisodes attendus, 31 jours au plus | Page Calendrier, bloc d'accueil |
+| `/available/{type}/{id}` | Disponibilité, langues, qualité, sources | Vérification ponctuelle |
+
+**Le type est un segment de chemin, pas un paramètre.** `/catalog/movie` filtre
+les films ; `/catalog?type=movie` est accepté puis **ignoré**, et renvoie
+silencieusement tout le catalogue. Ce détail coûte une demi-journée à qui ne
+l'a pas vu — d'où ce paragraphe.
+
+Les filtres de `/catalog`, eux, sont bien des paramètres : `genre`, `year`
+(une année ou un intervalle `2020-2026`), `lang`, `quality`, `rating`,
+`platform`, `sort` (`popular`, `added`, `rating`) et `page`.
+
+### Ce que l'API ne donne pas
+
+- **Aucun casting, aucune réalisation, aucun studio.** Il n'existe pas de route
+  de générique. La page `/personne/:slug` a donc disparu, ainsi que les champs
+  correspondants du modèle. Les inventer aurait été mentir.
+- **Aucune URL de fichier vidéo.** La lecture passe obligatoirement par le
+  lecteur HeiwaStream — voir plus bas.
+- **Pas de liste des genres.** Celle de `src/lib/genres.ts` est écrite à la
+  main, dans l'orthographe française de TMDB, parce qu'aucune route ne
+  l'expose.
+- **Pas de sagas, pas de collections.**
+
+### Quotas
+
+Cent mille requêtes par jour, ce qui est large. Mais la **limite de rafale**
+est stricte : une vingtaine d'appels en deux secondes suffit à déclencher un
+`429`. Le proxy est construit autour de cette contrainte.
+
+---
+
+## Le proxy, en trois précautions
+
+`server/heiwa.mjs` fait trois choses au-delà du simple relais.
+
+**Un cache, à durée variable selon la fraîcheur utile.** Une fiche ne change
+pas : elle est gardée une semaine, et sur disque (`.cache/heiwa.json`), donc
+elle survit à un redémarrage. Un classement est gardé une demi-heure, les
+nouveautés cinq minutes. Mettez `HEIWA_NO_CACHE=1` pour tout désactiver.
+
+**Une file d'attente.** Deux requêtes de front au plus, espacées de 120 ms, et
+une reprise sur `429` qui respecte l'en-tête `Retry-After`. Une même adresse
+demandée six fois en même temps ne part qu'une fois.
+
+**L'enrichissement.** Le catalogue ne renvoie ni affiche ni résumé ; la fiche
+`/media` les a. Plutôt que cinquante allers-retours depuis le navigateur, le
+proxy complète les entrées lui-même quand l'appel porte `rich=N` : il va
+chercher la fiche des N premiers titres et la fusionne dans la liste.
+`HEIWA_RICH` fixe le défaut (24). Au-delà de ce que l'écran montre, c'est du
+quota dépensé pour rien ; les entrées non enrichies restent affichables, avec
+une affiche dessinée et sans résumé.
+
+Le premier chargement à froid prend donc quelques secondes, le temps que les
+fiches arrivent. Les suivants sont instantanés.
 
 ---
 
 ## Trouver quelque chose à regarder
 
-L'accueil s'ouvre sur un **hero rotatif** : cinq titres se succèdent toutes
-les neuf secondes, en commençant par quelque chose qui se lit vraiment. Il
-s'arrête dès que la souris s'y pose, que le clavier y entre, que l'onglet
-passe au second plan, ou si le système demande de réduire les animations.
+L'accueil s'ouvre sur un **bandeau rotatif** nourri par le classement de la
+semaine : six titres toutes les neuf secondes, arrêtés dès que la souris s'y
+pose, que le clavier y entre, que l'onglet passe au second plan ou que le
+système demande de réduire les animations.
 
-Dessous, les rangées : ce qui est lisible, les recommandations, les
-tendances, les sorties récentes, les films, les séries, puis une rangée par
-genre — les plus fournis d'abord, les suivantes apparaissant au défilement
-plutôt que toutes d'un coup.
+Dessous, **chaque rangée charge la sienne**, et s'affiche dès qu'elle arrive.
+C'est volontaire : attendre que huit rangées soient prêtes laisserait la page
+grise plusieurs secondes. Une rangée qui échoue disparaît sans bruit ; la
+fiche et le catalogue, eux, annoncent leurs pannes.
 
-Au coin des affiches, un **badge** dit ce qu'on a sous les yeux : « Lisible »
-pour ce qui a une source, « Démo » pour le catalogue inventé, rien pour une
-fiche réelle sans fichier. Le catalogue a le filtre correspondant,
-**Lisibles uniquement**, qui se combine aux genres et aux décennies, et qui
-s'écrit `?lisible=1` dans l'URL.
+Le **catalogue** garde tout son état dans l'adresse — rayon, genre, décennie,
+langue, qualité, note, tri, page. Un lien partagé rouvre la même vue, et le
+bouton Retour fait ce qu'on attend. Les noms de paramètres sont en français :
+`?type=anime&genre=Action&decennie=2010&langue=vf&qualite=1080p&tri=rating`.
 
-Une catégorie **Anime** existe à côté de Films et de Séries, mais elle
-n'apparaît que lorsqu'il y a quelque chose dedans. Elle se nourrit de
-`src/data/anime.ts`, que remplit `npm run import:mal` — voir plus bas. Tant
-que le fichier est vide, le menu, la rangée d'accueil et le filtre restent
-invisibles.
+Deux limites de l'API méritent d'être connues :
 
-L'origine n'est volontairement pas un troisième type à côté de « film » et
-« série » : un anime *est* l'un ou l'autre, et en faire un type aurait produit
-des titres sans durée et sans saisons. C'est un axe séparé, ce qui permet de
-croiser les deux — `?categorie=anime&type=serie` donnera les séries anime.
+- **Mille titres par jeu de filtres.** Vingt pages de cinquante. Pour aller
+  au-delà, il faut resserrer — ajouter un genre, une décennie, une langue. La
+  page le dit quand on arrive au bout plutôt que de laisser chercher.
+- **La recherche par titre ne se combine pas aux filtres.** Elle passe par
+  `/find`, qui n'accepte ni genre ni tri. Les filtres sont donc masqués
+  pendant une recherche, au lieu d'être affichés sans effet.
 
-Tout nom crédité mène à une **page personne** — `/personne/:slug` — qui
-rassemble ce que cette personne a réalisé et ce dans quoi elle est au
-générique, avec le rôle sous chaque affiche. La page ne liste que ce que ce
-catalogue contient : ce n'est pas une filmographie.
+Le tri porte sur tout le catalogue, pas sur la page affichée : il est passé à
+l'API. Trier côté navigateur n'aurait trié que cinquante titres sur quarante
+mille, ce qui aurait été faux.
 
----
+### Le calendrier
 
-## Brancher votre bibliothèque
+`/calendrier` groupe par jour les épisodes annoncés. La fenêtre se règle — 7,
+14 ou 31 jours — et **31 est la borne de l'API**, pas un choix de design : au
+delà elle répond `invalid_parameter`. Le client vérifie l'écart avant
+d'appeler, parce qu'une erreur de paramètre n'apprend rien à personne.
 
-Tout le catalogue tient dans `src/data/catalog.ts`. Remplacez son contenu par le
-vôtre ; rien d'autre n'a besoin de changer.
+Le filtre « seulement ma liste » est appliqué dans le navigateur. L'API ne
+sait pas ce qu'il y a dans votre liste, et lui demander trente et un jours
+pour n'en garder que trois lignes coûte exactement la même requête que de
+tout afficher.
 
-### Un film
+Les dates sont relatives tant qu'elles situent quelque chose : « aujourd'hui »,
+« demain », « samedi 25 octobre », puis « le 9 novembre » au-delà d'une
+semaine — passé sept jours, le nom du jour ne situe plus rien.
 
-```ts
-film({
-  id: 'noel-2019',                    // unique et stable : il sert de clé partout
-  title: 'Noël chez mamie',
-  year: 2019,
-  runtime: 42,                        // en minutes
-  genres: ['Famille'],
-  rating: 0,                          // 0 masque la note
-  director: 'Papa',
-  cast: ['Toute la famille'],
-  synopsis: "Le sapin tombe à la minute 12.",
-  popularity: 50,                     // sert au tri « les plus regardés »
-  addedAt: '2026-10-19',
-  demo: false,                        // retire la mention « catalogue de démonstration »
-  sources: [
-    { src: '/videos/noel-2019.mp4', type: 'video/mp4' },
-  ],
-})
-```
+### Le prochain épisode
 
-### Une série
+La fiche `/media` d'une série en cours porte un champ `nextEpisode` — saison,
+numéro, titre, date. C'est l'information qu'on vient chercher quand on suit
+une série, donc elle passe **avant** les boutons sur la fiche, dans un
+bandeau à part.
 
-```ts
-serie({
-  id: 'vacances',
-  title: 'Vacances',
-  year: 2024,
-  genres: ['Famille'],
-  rating: 0,
-  director: 'Papa',
-  cast: [],
-  synopsis: "Trois étés filmés au caméscope.",
-  popularity: 40,
-  addedAt: '2026-10-19',
-  demo: false,
-  seasons: [
-    season('vacances', 1, [
-      ['Bretagne', "Il pleut tous les jours sauf le dernier.", 28],
-      ['Ardèche',  "Canoë et coup de soleil.", 31],
-    ], [
-      [{ src: '/videos/vacances-s1e1.mp4', type: 'video/mp4' }],
-      [{ src: '/videos/vacances-s1e2.mp4', type: 'video/mp4' }],
-    ]),
-  ],
-})
-```
+Sur les affiches, une pastille n'apparaît que si l'épisode sort aujourd'hui ou
+demain. Au-delà, l'information appartient à la fiche et au calendrier : une
+pastille « dans onze jours » n'aide personne et salit la grille.
 
-Le troisième argument de `season()` est la liste des sources, épisode par
-épisode, dans le même ordre que les titres. Un tableau vide laisse l'épisode
-sans source : la fiche le marque et le lecteur le dit clairement.
+### Par plateforme
 
-### Où poser les fichiers vidéo
+Le filtre `platform` de `/catalog` signifie « inclus dans l'abonnement de
+cette plateforme », pas « hébergé par elle » : la lecture reste celle de
+HeiwaStream dans tous les cas.
 
-Pour quelques fichiers, `public/videos/` suffit : tout ce qui s'y trouve est
-servi tel quel à la racine du site, et `/videos/mon-film.mp4` fonctionne.
+Six identifiants rendent des résultats, et ils sont écrits à la main dans
+`src/lib/plateformes.ts` faute de route qui les liste : `netflix`,
+`prime-video`, `disney-plus`, `max`, `canal-plus`, `crunchyroll`. Chacun a été
+vérifié contre l'API ; ceux qui renvoyaient zéro — `apple-tv-plus`,
+`paramount-plus`, `ocs` — n'y figurent pas, parce qu'un filtre qui ouvre une
+page vide est pire que pas de filtre.
 
-Pour une vraie bibliothèque, ne mettez pas des dizaines de gigaoctets dans
-`public/` — Vite copierait tout à chaque build. Servez-les depuis un dossier
-séparé et pointez les sources vers une URL absolue :
-
-```ts
-sources: [{ src: 'https://films.chez-moi.fr/noel-2019.mp4', type: 'video/mp4' }]
-```
-
-La configuration Caddy correspondante est donnée plus bas.
-
-### Formats
-
-Le lecteur interroge le navigateur avant d'essayer une source et écarte celles
-qu'il refuse. Vous pouvez donc proposer le même épisode en plusieurs formats :
-il prendra le premier qui passe.
-
-**H.264 / AAC en MP4** est le choix le plus sûr : tous les navigateurs le
-lisent. Si un fichier ne passe pas :
-
-```bash
-ffmpeg -i source.mkv -c:v libx264 -crf 21 -preset slow \
-       -c:a aac -b:a 160k -movflags +faststart sortie.mp4
-```
-
-`-movflags +faststart` est important : sans lui, la lecture ne démarre qu'une
-fois le fichier presque entièrement téléchargé.
-
-Pour proposer plusieurs qualités, donnez-leur le même libellé de `quality` et
-le lecteur les regroupera dans le sélecteur :
-
-```ts
-sources: [
-  { src: '/videos/film-1080p.mp4', type: 'video/mp4', quality: '1080p' },
-  { src: '/videos/film-720p.mp4',  type: 'video/mp4', quality: '720p'  },
-]
-```
-
-### HLS, pour une vraie diffusion adaptative
-
-Les fichiers MP4 progressifs conviennent sur un bon réseau. Dès que plusieurs
-personnes regardent en même temps, ou depuis une connexion mobile, HLS vaut
-mieux : la qualité s'ajuste toute seule, et une coupure ne fait pas repartir la
-lecture du début.
-
-`hls.js` est déjà installé et **chargé à la demande** : il ne pèse sur le
-téléchargement initial que si une source `.m3u8` est réellement utilisée. Safari
-lit HLS nativement et ne le charge jamais.
-
-Pour fabriquer les segments :
-
-```bash
-ffmpeg -i source.mp4 \
-  -filter_complex "[0:v]split=3[v1][v2][v3]; \
-    [v1]scale=w=1920:h=1080[v1out]; [v2]scale=w=1280:h=720[v2out]; [v3]scale=w=854:h=480[v3out]" \
-  -map "[v1out]" -c:v:0 libx264 -b:v:0 5000k \
-  -map "[v2out]" -c:v:1 libx264 -b:v:1 2800k \
-  -map "[v3out]" -c:v:2 libx264 -b:v:2 1400k \
-  -map a:0 -map a:0 -map a:0 -c:a aac -b:a 128k \
-  -f hls -hls_time 6 -hls_playlist_type vod \
-  -master_pl_name master.m3u8 \
-  -var_stream_map "v:0,a:0 v:1,a:1 v:2,a:2" \
-  sortie/flux_%v.m3u8
-```
-
-Puis une seule source suffit, les qualités étant gérées par le flux lui-même :
-
-```ts
-sources: [{ src: '/videos/noel/master.m3u8', type: 'application/vnd.apple.mpegurl' }]
-```
-
-Comptez plusieurs minutes à plusieurs heures de calcul par film.
+L'accueil en montre une bande de liens, qui ne coûte aucune requête : ce sont
+des liens vers le catalogue déjà filtré.
 
 ---
 
-## Importer un catalogue depuis TMDB
+## Les affiches
 
-Toutes les options s'écrivent `--nom` ou `--nom=valeur`. Le script **refuse**
-ce qu'il ne reconnaît pas plutôt que de l'ignorer : une option mal tapée
-arrête la commande au lieu de produire un import silencieusement différent de
-celui demandé.
+HeiwaStream renvoie les **chemins TMDB** (`/pEoqbqt….jpg`) sans les assembler.
+`src/lib/images.ts` en fait des URL servies par le CDN d'images de TMDB, qui ne
+demande ni clé ni compte : c'est un serveur de fichiers, pas une API. Les
+tailles y sont nommées par usage plutôt que par largeur, parce qu'une affiche
+de carte en `original` pèse dix fois le poids utile.
 
-Pour remplir la grille avec de vrais titres — vraies affiches, vrais
-génériques, vrais synopsis — sans rien saisir à la main :
-
-```bash
-npm run import:tmdb -- --key=VOTRE_CLE
-```
-
-La clé est gratuite : créez un compte sur
-[themoviedb.org](https://www.themoviedb.org/signup), puis Paramètres →
-API → demandez une clé pour usage personnel.
-
-Le script écrit `src/data/tmdb.generated.ts`, que `catalog.ts` ajoute au
-catalogue. Relancez-le pour rafraîchir. Quelques options :
-
-```bash
-npm run import:tmdb -- --key=... --pages=10 --list=top_rated --lang=en-US
-```
-
-`--pages` compte vingt titres par page, `--list` accepte `popular`,
-`top_rated`, `now_playing` et `upcoming`.
-
-**La clé ne quitte pas votre machine.** Le script tourne une fois, écrit un
-fichier, et le navigateur ne la voit jamais. Ne déplacez pas ces appels dans
-l'application : une clé dans une page web est une clé publique.
-
-L'import rapporte aussi le **logo du titre** quand TMDB en a un : le
-lettrage propre au film, sur fond transparent, que le hero affiche à la place
-du titre composé. Quand il n'y en a pas, le titre est simplement typographié.
-
-La liste demandée bouge pendant qu'on la parcourt, si bien qu'un même film
-peut arriver sur deux pages. Le script écarte les doublons avant d'aller
-chercher les détails, et le catalogue en écarte une seconde fois à la
-construction — un fichier généré avant cette version reste donc propre.
-
-**TMDB ne fournit aucune vidéo.** L'import apporte les métadonnées, les
-affiches et les logos ; chaque titre arrive sans source, et sa fiche le dit. C'est de quoi
-éprouver la grille, les filtres et la recherche sur une vraie matière, pas un
-catalogue regardable.
-
-### Des séries
-
-Le script importe des films par défaut. Avec `--series`, il va chercher des
-séries, dans un fichier à part pour que les deux imports ne s'effacent pas :
-
-```bash
-npm run import:tmdb -- --key=VOTRE_CLE --series --pages=3 \
-  --export=TMDB_SERIES --out=src/data/tmdb.series.ts
-```
-
-Une série coûte plus cher qu'un film : une requête pour elle, puis une par
-saison pour les épisodes. En échange les épisodes arrivent avec leurs vrais
-titres **et** leurs synopsis en français, ce qu'aucune autre source de ce
-projet ne donne. `--saisons=false` saute les épisodes si seules les fiches
-vous intéressent, `--saisons-max` plafonne les séries fleuves.
-
-`--sans-genres` écarte des genres par identifiant TMDB. `--sans-genres=16`
-retire l'animation, ce qui est utile si vos anime viennent déjà de
-MyAnimeList : sans cela quelques-uns reviendront ici sous leur titre
-français, et le même titre occupera deux étagères sous deux noms.
-
-À la fin, l'import annonce le poids ajouté au paquet JavaScript. Le catalogue
-étant compilé dans le code, c'est ce que chaque visiteur télécharge avant le
-premier affichage : comptez 0,65 ko compressé par titre et 27 octets par
-épisode, et surveillez le total autour de six cents titres.
+Quand il n'y a pas de chemin — un titre sans affiche chez TMDB, une entrée que
+le proxy n'a pas enrichie, une image que le navigateur n'a pas pu charger —
+`src/lib/poster.ts` en dessine une : une sérigraphie abstraite dérivée de
+l'identifiant du titre, donc stable d'une visite à l'autre et d'un appareil à
+l'autre, sans rien stocker. Mieux qu'un rectangle gris, et mieux qu'une image
+cassée. `src/components/Art.tsx` fait la bascule toute seule.
 
 ---
 
-Si vous gardez cet import, TMDB demande que vous le mentionniez. Une ligne
-dans le pied de page suffit : « Ce produit utilise l'API de TMDB mais n'est ni
-approuvé ni certifié par TMDB. »
+## Le lecteur
 
----
+L'API ne donne jamais l'adresse d'un fichier. Elle donne une adresse de
+lecteur, et c'est ce lecteur qui joue :
 
-## Importer des anime depuis MyAnimeList
-
-TMDB distingue mal l'animation japonaise du reste. MyAnimeList ne fait que
-ça, et son API officielle alimente la catégorie Anime :
-
-```bash
-npm run import:mal -- --id=VOTRE_CLIENT_ID
+```
+https://heiwastream.fr/embed/movie/603
+https://heiwastream.fr/embed/tv/1399/01/02
 ```
 
-L'identifiant client s'obtient gratuitement : connectez-vous sur
-myanimelist.net, puis Paramètres du compte → onglet API → **Create ID**. Une
-fois l'application créée, **Edit** affiche le Client ID. **Seul le Client ID
-est nécessaire** : les données publiques d'anime passent par un simple
-en-tête `X-MAL-CLIENT-ID`, sans OAuth. Le Client Secret ne sert pas ici.
-Comme la clé TMDB, il ne quitte pas votre machine.
+La lecture vit donc dans une **iframe**, et tout ce que la page peut en faire
+passe par `postMessage`. `src/player/Embed.tsx` enveloppe ça et expose la même
+interface impérative que l'ancien lecteur maison — `play`, `pause`, `seek`,
+`position`, `isPlaying` — de sorte que la synchro des salles n'a pas eu à
+changer d'une ligne.
 
-```bash
-npm run import:mal -- --id=... --pages=4 --classement=tv
-```
+Ce que l'iframe change, et qu'il vaut mieux savoir :
 
-`--pages` compte par centaine de titres — **une seule requête pour cent
-fiches**, parce que l'API rend les enregistrements entiers quand on les lui
-demande. Deux cents anime coûtent deux appels, là où une API REST ordinaire
-en demanderait trois cents. `--classement` accepte `bypopularity` (par
-défaut), `all`, `airing`, `upcoming`, `favorite`, et les types `tv`,
-`movie`, `ova`, `special`.
+- **Les commandes sont asynchrones et sans accusé de réception.** On demande,
+  on apprend le résultat par un événement. La position est tenue à partir des
+  `time` reçus, et non lue sur un élément.
+- **Les boutons, le plein écran, l'image dans l'image et les raccourcis
+  appartiennent au lecteur distant.** Notre barre ne garde que ce qui est à
+  nous : sortir, le titre, la séance partagée. Dédoubler le reste serait pire
+  que de s'en passer.
+- **Le plein écran est pris par l'iframe elle-même**, donc nos surcouches —
+  barre du haut, carte « À suivre » — disparaissent alors. C'est normal.
+- **Le lecteur déployé n'envoie aujourd'hui aucun message, et ignore les
+  commandes.** Mesuré le 21 octobre 2026 : une page tierce qui l'encadre reçoit
+  zéro `ready`, zéro `time`, zéro `ended`, et un `pause` envoyé ne fait rien,
+  sur un film qui se lit parfaitement. La documentation décrit pourtant ce
+  protocole — il n'est simplement pas en service.
 
-Ce que cette source **n'a pas**, et ce que le catalogue en fait :
+  Conséquence : pas de reprise à la position, pas d'enregistrement de la
+  progression, pas d'enchaînement automatique des épisodes, et pas de synchro
+  de lecture dans une séance partagée. L'écoute reste branchée : le jour où
+  HeiwaStream livre le protocole, tout repart sans un changement ici.
 
-- **Aucune liste d'épisodes.** L'API v2 n'en expose pas. Une série arrive donc
-  avec son **nombre** d'épisodes et aucun épisode : la carte affiche « 1139
-  épisodes » plutôt qu'un « 1 saison » que rien ne soutient, et la fiche
-  n'ouvre pas de section Épisodes. Inventer mille lignes d'« Épisode 417 »
-  aurait été pire que l'aveu.
-- **Aucune image panoramique, aucune bande-annonce, aucun générique.** Les
-  affiches générées prennent le relais des fonds ; le reste est absent.
-- **Aucun français.** Les synopsis sont en anglais, et le pied de page le dit.
-- **Pas de réalisateur**, mais le **studio**, qui apparaît sur la fiche.
+  Corollaire qui a coûté un écran noir : **le voile de chargement ne doit
+  jamais attendre un message**. Il se retire sur l'événement `load` de
+  l'iframe, que le navigateur garantit.
 
-Les genres sont traduits à la source : la table de correspondance vit dans le
-script et sert aussi de liste d'autorisation. MyAnimeList range ses thèmes et
-ses catégories démographiques parmi les genres — School, Shounen, Time
-Travel, quatre-vingts libellés — et un genre sans orthographe française dans
-la table n'entre tout simplement pas. Mieux vaut un vocabulaire court et sûr
-qu'un vocabulaire long à moitié traduit.
-
-Le contenu adulte est écarté à la source.
-
----
-
-## Remplacer les affiches
-
-Faute d'affiches, le projet en **génère** : chaque titre reçoit une composition
-géométrique déterministe, tirée de son identifiant, dans une palette d'encres
-commune. Deux titres n'ont jamais la même, et le même titre a toujours la
-sienne. Le code est dans `src/lib/poster.ts`.
-
-Pour utiliser vos propres images, ajoutez `artwork` (portrait 2:3) et
-`backdrop` (paysage 16:9) à l'entrée :
-
-```ts
-artwork: '/affiches/noel-2019.jpg',
-backdrop: '/affiches/noel-2019-large.jpg',
-```
-
-Vous pouvez aussi donner `logo` — le lettrage du titre sur fond transparent,
-affiché par le hero à la place du texte.
-
-**Une image manquante ne casse rien.** Si le fichier n'est pas là, ou si
-l'hôte distant refuse, l'affiche générée reprend sa place sans que la page
-montre l'icône d'image cassée du navigateur. C'est `src/components/Art.tsx`.
-
-L'entrée du hero peut aussi recevoir `heroVideo`, une boucle muette en fond. Elle
-n'est chargée que sur grand écran, si le système n'a pas demandé de réduire les
-animations et si le navigateur n'est pas en mode économie de données.
-
----
-
-## Dans le lecteur
-
-### Enchaîner les épisodes
-
-Quinze secondes avant la fin d'un épisode — ou le dernier cinquième seulement,
-pour un clip très court — une carte annonce la suite et décompte le temps qui
-reste. « Lire maintenant » enchaîne tout de suite ; « Annuler » laisse
-l'épisode se terminer sans rien lancer, et le lecteur reste sur sa dernière
-image.
-
-Le décompte n'est pas une minuterie à part : c'est le temps restant de la
-vidéo. Revenir en arrière fait donc disparaître la carte, qui réapparaîtra le
-moment venu.
-
-Le dernier épisode d'une saison, comme un film, ramène à la fiche. Un épisode
-auquel aucun fichier n'est associé n'est jamais proposé.
-
-Dans une salle partagée, la carte décompte mais n'offre pas « Lire
-maintenant » : chacun bascule à la fin de son propre épisode, et partir en
-avance laisserait les autres derrière.
-
-### Image dans l'image
-
-Le bouton à gauche du plein écran, ou la touche `P`, détache la vidéo dans une
-petite fenêtre qui flotte au-dessus des autres applications.
-
-Chrome, Edge et Safari donnent cette possibilité aux pages ; Firefox la garde
-pour lui et propose son propre bouton au survol de la vidéo, et Chrome sur
-Android ne l'expose pas. Le bouton de Lucarne n'apparaît donc que là où il peut
-réellement fonctionner, plutôt que d'échouer sous le doigt.
-
-La synchronisation d'une salle partagée continue pendant ce temps. Le panneau
-de chat, lui, reste sur la page — comme en plein écran.
-
-### Les commandes du système
-
-Pendant la lecture, Lucarne annonce au système ce qui passe. Titre, épisode et
-affiche apparaissent sur l'écran verrouillé d'un téléphone, dans la fenêtre que
-Windows ouvre quand on appuie sur la touche pause du clavier, dans le « Now
-Playing » de macOS, sur l'écran d'un autoradio. Les touches média du clavier et
-les boutons d'un casque Bluetooth pilotent alors le lecteur ; « piste
-suivante » passe à l'épisode suivant.
-
-Rien ne sort sur le réseau et aucun compte n'est nécessaire : c'est une
-interface du navigateur, au même titre que le plein écran. Là où elle manque,
-il ne se passe simplement rien.
-
-Ces commandes passent par les mêmes fonctions que les boutons à l'écran. Une
-pause prise depuis l'écran verrouillé arrive donc dans une salle partagée
-exactement comme une pause prise dans la barre de contrôle. Dans une salle,
-« piste suivante » est retiré, pour la raison qui masque « Lire maintenant ».
-
-Faute d'affiche fournie, c'est la composition générée qui sert de pochette,
-redessinée en JPEG : les plateformes derrière cette interface ne décodent pas
-toutes le SVG.
+Le site n'utilise du lecteur distant que la lecture. Les réglages de couleurs
+et de marque qu'il propose demandent un domaine déclaré avec la clé, ce qui
+n'a de sens qu'une fois le site en ligne — voir
+[la page Lecteur](https://heiwastream.fr/api?p=lecteur).
 
 ---
 
 ## Regarder ensemble
 
-Deux personnes (jusqu'à huit) peuvent suivre le même film en même temps, chacune
-chez soi, lecture synchronisée.
+Deux personnes (jusqu'à huit) peuvent suivre le même film en même temps,
+chacune chez soi, lecture synchronisée.
 
-**Comment on s'en sert.** Dans le lecteur, bouton « Regarder ensemble » en haut à
-droite. Un code de salle apparaît ; copiez le lien et envoyez-le. La personne
-qui l'ouvre arrive sur le même film, au même endroit, même si vous avez
-commencé il y a vingt minutes.
+**Comment on s'en sert.** Dans le lecteur, bouton « Regarder ensemble » en haut
+à droite. Un code de salle apparaît ; copiez le lien et envoyez-le. La personne
+qui l'ouvre arrive sur le même titre, au même endroit.
 
 **Le contrôle est partagé.** Chacun peut lancer, mettre en pause et se déplacer
 dans le film ; l'action vaut pour tout le monde. Il n'y a pas d'hôte.
 
-**L'attente est partagée aussi.** Si la vidéo se met à charger chez l'un, la
-lecture s'arrête chez les deux, et repart ensemble quand c'est prêt. Un bandeau
-indique qui on attend.
-
 **Le chat** est à côté de la vidéo (en bas de l'écran sur mobile). Les messages
 ne sont stockés nulle part : ils vivent le temps de la séance et disparaissent.
 
-En plein écran, le panneau latéral n'est plus visible — c'est une limite du
-plein écran du navigateur, qui ne couvre que l'élément vidéo.
+**La condition.** La synchro repose sur ce que le lecteur rapporte. Elle
+fonctionne quand il envoie sa position, et pas quand la source joue chez un
+hébergeur tiers. Dans ce cas le lecteur le dit en haut de l'écran.
 
 ### Ce qu'il faut pour que ça marche
 
@@ -478,17 +318,21 @@ Les deux navigateurs doivent joindre **le même serveur**. Trois cas :
 
 ### Comment c'est fait
 
-Un petit relais WebSocket, dans `server/sync.mjs`. Il ne détient pas le film et
-ne décide de rien : il transmet aux autres ce que l'un vient de faire, et tient
-la liste des présents. En développement il est greffé sur le serveur Vite, donc
-`npm run dev` reste la seule commande à lancer.
+Un petit relais WebSocket, dans `server/sync.mjs`. Il ne détient rien et ne
+décide de rien : il transmet aux autres ce que l'un vient de faire, et tient la
+liste des présents.
 
 Un point mérite d'être expliqué, parce qu'il n'est pas évident. Le contrôle
 étant partagé, personne ne fait autorité — et deux lecteurs qui se corrigent
 mutuellement finissent par osciller. Donc : toute action explicite s'impose à
 tous, mais la **dérive** au fil de la lecture est arbitrée par une seule
-personne, celle qui est entrée la première dans la salle. Les autres se recalent
-silencieusement sur elle dès que l'écart dépasse 1,2 seconde.
+personne, celle qui est entrée la première dans la salle. Les autres se
+recalent silencieusement sur elle dès que l'écart dépasse 1,2 seconde.
+
+Une précaution propre à l'iframe : une commande que nous émettons provoque un
+événement `play` ou `pause` que le lecteur nous renvoie. Sans filtre, cet écho
+repartirait vers la salle et les deux lecteurs se renverraient l'ordre
+indéfiniment. Embed ignore donc l'écho pendant 700 ms après chaque commande.
 
 ---
 
@@ -500,55 +344,219 @@ histoires.
 Les **profils** de Lucarne ne sont pas une sécurité. Ils séparent les listes et
 les reprises de lecture entre les gens du foyer, rien de plus. Ils n'ont pas de
 mot de passe, et c'est volontaire : une application qui tourne entièrement dans
-le navigateur ne peut garder aucun secret. Un mot de passe vérifié en JavaScript
-côté client se contourne en ouvrant les outils de développement.
+le navigateur ne peut garder aucun secret. Un mot de passe vérifié en
+JavaScript côté client se contourne en ouvrant les outils de développement.
 
 Tout ce que l'application mémorise passe par une seule interface,
 `LucarneStore`, dans `src/lib/storage.ts`. L'implémentation livrée écrit dans
-`localStorage` : propre à chaque navigateur et à chaque appareil. Suffisant pour
-essayer, insuffisant dès que les mêmes personnes regardent depuis le téléphone
-et la télévision.
+`localStorage` : propre à chaque navigateur et à chaque appareil. Suffisant
+pour essayer, insuffisant dès que les mêmes personnes regardent depuis le
+téléphone et la télévision.
 
-Pour une vraie authentification, il faut un serveur. Écrivez une seconde
-implémentation de `LucarneStore` qui appelle votre API, exportez-la à la place
-de `store`, et aucun composant ne change. Côté serveur, les règles habituelles :
-mots de passe hachés avec bcrypt ou argon2, jamais en clair ; session dans un
-cookie `HttpOnly` `Secure` `SameSite=Lax` ; et la protection réelle de vos
-fichiers vidéo, qui doit se faire sur le serveur de fichiers, pas dans
-l'interface.
+À noter : la liste et les reprises ne gardent que des **identifiants**, de la
+forme `movie-603` ou `tv-1399`. Les titres sont redemandés à l'API à chaque
+visite — gratuitement, puisque les fiches sont en cache — ce qui les tient à
+jour, là où une copie locale aurait vieilli.
+
+**C'est ce que fait désormais le chapitre Comptes** : une seconde
+implémentation de `LucarneStore` qui appelle le serveur, choisie selon qu'on
+est connecté ou non. Mots de passe hachés en scrypt, session dans un cookie
+`HttpOnly` `SameSite=Lax`, `Secure` dès que le site est en HTTPS. Les profils
+locaux restent pour qui ne veut pas de compte.
 
 Le plus simple, si le site n'est destiné qu'à vos proches : laissez les profils
 tels quels et protégez tout le site derrière une authentification de niveau
-serveur — Caddy, nginx, ou un tunnel Tailscale. L'interface reste une
-interface ; le contrôle d'accès reste au bon endroit.
+serveur — Caddy, nginx, ou un tunnel Tailscale.
+
+---
+
+## Comptes
+
+Le site est **ouvert** : on parcourt le catalogue et on lance une lecture sans
+rien créer. Un compte sert à une seule chose, et les pages ne promettent rien
+d'autre — faire suivre sa liste et ses reprises d'un appareil à l'autre.
+
+Sans compte, tout reste dans le navigateur, comme avant. Avec, tout passe par
+le serveur : `src/lib/storage.ts` expose deux implémentations de la même
+interface `LucarneStore`, et `magasinPour(compte)` choisit. Aucun composant ne
+sait lequel il manipule.
+
+**Ce qu'un compte contient** : un nom, une empreinte scrypt du mot de passe,
+une date. Pas d'adresse électronique — donc pas de courrier à envoyer, et pas
+de réinitialisation automatique. Qui perd son mot de passe le fait remettre
+depuis le panneau d'administration.
+
+**L'inscription est libre**, assortie de garde-fous qui ne gênent personne :
+trois comptes par heure et par adresse IP, huit caractères au minimum, et un
+interrupteur dans le panneau pour fermer les inscriptions en un clic.
+
+**La session** vit dans un cookie `HttpOnly` signé, valable un mois. Toutes
+les routes de bibliothèque lisent l'identifiant du compte **dans ce cookie**,
+jamais dans l'URL ni dans le corps de la requête : c'est ce qui garantit qu'on
+ne lit pas la liste du voisin en changeant un numéro.
+
+Tout est rangé dans `donnees/`, non versionné : `comptes.json`,
+`bibliotheques/<id>.json`, et le secret de signature. Une base de données
+serait une complication sans contrepartie à cette échelle ; le jour où elle
+s'impose, seuls `comptes.mjs` et `bibliotheque.mjs` changent.
+
+---
+
+## Le suivi d'usage
+
+Le site enregistre ce que les visiteurs y font. C'est un choix de
+l'exploitant, et il s'accompagne de deux obligations qu'on a tenues : **le
+dire** et **pouvoir effacer**.
+
+**Ce qui est enregistré** : fiche ouverte, lecture lancée, recherche,
+connexion, inscription. Avec l'heure, l'adresse IP, le type d'appareil, et le
+compte quand il y en a un. Un fichier par jour dans `donnees/evenements/`, une
+ligne JSON par événement — un format qui s'écrit par ajout et ne se corrompt
+pas en cas de coupure.
+
+**Ce qui ne peut pas l'être** : la durée réellement regardée. Le lecteur est
+une iframe de HeiwaStream qui ne rapporte rien (voir le chapitre Le lecteur).
+« Lecture lancée » ne veut donc pas dire « film regardé » : un titre lancé
+puis abandonné à la deuxième minute compte pareil. Le panneau le rappelle à
+l'endroit où l'on lit les chiffres, parce qu'un indicateur mal compris est
+pire qu'un indicateur absent.
+
+**Ce qui est dit aux visiteurs** : une phrase dans le pied de page de chaque
+page, et un paragraphe sur la page d'inscription, au moment où la personne
+décide. Enregistrer l'activité de quelqu'un sans le lui dire ne se fait pas,
+et la loi française et européenne est du même avis — une adresse IP est une
+donnée personnelle.
+
+**Ce qu'on peut effacer** : un membre supprime son compte et tout ce qui s'y
+rapporte depuis *Mon compte*. L'administrateur peut effacer l'historique d'un
+compte sans toucher au compte — c'est le geste à faire quand quelqu'un le
+demande — ou supprimer le compte, ce qui emporte aussi ses traces.
+
+**La rétention** est illimitée par défaut, conformément au réglage choisi.
+`RETENTION_JOURS=90` dans `.env` suffit à activer la purge automatique, qui
+tourne au démarrage puis une fois par jour. Le mécanisme existe avant d'être
+utile, pour pouvoir changer d'avis sans rien migrer.
+
+---
+
+## Administration
+
+Une page `/admin` réservée, pour voir ce qui se passe : le quota, les erreurs,
+l'état du cache, les connexions. Elle n'existe pas pour les visiteurs — ni
+l'onglet, ni le code.
+
+### Qui a le droit d'entrer
+
+Le serveur ne connaît personne : il reçoit des requêtes, et rien dans une
+requête ne dit qui l'envoie. Il accepte donc deux preuves, et pas une de plus.
+
+**Venir de la machine elle-même.** Une requête dont la socket part de
+`127.0.0.1` ne peut pas avoir été fabriquée de l'extérieur. En développement
+c'est votre cas : `/admin` s'ouvre sans rien taper. Mettez `ADMIN_LOCALHOST=0`
+si vous voulez le mot de passe même là.
+
+**Connaître le mot de passe.** Vérifié une fois, puis remplacé par une session
+signée dans un cookie `HttpOnly`, pour ne pas le redemander à chaque clic.
+
+```bash
+npm run admin:motdepasse     # imprime la ligne à coller dans .env
+```
+
+Le mot de passe lui-même n'est stocké nulle part : seule son empreinte scrypt
+part dans `.env`, et elle ne permet pas de le retrouver.
+
+Trois pièges classiques sont évités, et le code le dit à l'endroit où ils se
+posent : l'adresse vient de la **socket** et jamais de `X-Forwarded-For` — cet
+en-tête se forge en une ligne de curl, et lui faire confiance pour reconnaître
+localhost ouvrirait l'administration au monde ; la comparaison du mot de passe
+et celle de la signature sont à **temps constant** ; les tentatives sont
+**comptées**, cinq par dix minutes et par adresse.
+
+### Pourquoi le visiteur ne voit rien
+
+L'administration est une **seconde entrée Vite**, pas une route du site. Son
+code est construit dans un bundle à part que la page publique ne référence
+jamais : il n'est pas téléchargé, et le mot « admin » n'apparaît nulle part
+dans ce que reçoit un visiteur.
+
+En production, le serveur va plus loin. Il lit le manifeste de build, en
+déduit les fichiers qui n'appartiennent **qu'à** l'administration, et refuse
+de les servir sans session — un 404, comme s'ils n'existaient pas. Les
+fichiers partagés avec le site public, eux, restent publics : les protéger
+casserait le site pour tout le monde.
+
+Celui qui tombe sur `/admin` reçoit un écran de connexion rendu par le
+serveur, en HTML simple. Pas de bundle, rien à fouiller.
+
+### Ce que le tableau de bord montre
+
+Uniquement ce que le serveur sait déjà, sans rien instrumenter :
+
+- **Le quota HeiwaStream**, lu dans les en-têtes de chaque réponse. C'est
+  l'indicateur le plus utile du lot : il prévient avant la panne.
+- **Les appels** : combien, quelle part servie par le cache, durée moyenne et
+  pic, répartition par route.
+- **Les réponses par code**, les 429 séparément — ce sont les limites de
+  rafale, et elles disent quand le proxy force trop.
+- **Le cache** : entrées, fiches gardées, requêtes en vol.
+- **Les dernières erreurs**, avec l'heure et le chemin.
+- **Les connexions à l'administration**, lues dans le journal d'audit.
+
+Les compteurs vivent en mémoire et repartent à zéro au redémarrage : ils
+décrivent la santé du processus en cours. Le journal d'audit, lui, est écrit
+sur disque dans `donnees/admin-journal.jsonl`.
+
+Ce journal est tenu même pour un administrateur unique. Pas par méfiance : le
+jour où l'on se demande « est-ce que quelqu'un est entré ? », il faut que la
+réponse soit écrite quelque part.
+
+### Usage
+
+Qui vient, ce qu'on ouvre, ce qu'on lance, ce qu'on cherche — sur 7, 30 ou 90
+jours. Les mots cherchés sont la partie la plus instructive : ils disent ce
+qu'on attend du catalogue et qu'on n'y trouve pas.
+
+Une « visite » est un couple personne-ou-adresse et journée. Faute de
+traceur, c'est l'approximation honnête du nombre de gens venus, et le panneau
+l'écrit plutôt que d'afficher un chiffre qu'on croirait exact.
+
+### Comptes
+
+La liste des inscrits, leur dernière venue, et leur activité détaillée. Avec
+de quoi agir : fermer les inscriptions, suspendre quelqu'un, remettre un mot
+de passe, effacer un historique, supprimer un compte.
+
+### Derrière un proxy inverse
+
+Mettez `ADMIN_DERRIERE_PROXY=1` **uniquement** si un proxy est réellement
+devant : le journal lit alors `X-Forwarded-For` pour consigner la vraie
+adresse du visiteur plutôt que celle du proxy. Sans proxy, cet en-tête est
+falsifiable et n'importe qui choisirait ce qu'on écrit dans votre journal.
+L'accès, lui, ne dépend jamais de cet en-tête.
 
 ---
 
 ## Mettre en ligne
 
-`npm run build` produit `dist/`, un site statique.
+`npm run build` produit `dist/`, mais **ce n'est pas un site statique** : le
+proxy de l'API et le relais des salles vivent dans le serveur Node. Le site
+passe donc par `npm start`, pas par un simple dossier servi.
 
-Deux points comptent. D'abord, c'est une application à page unique : toute URL
-inconnue doit renvoyer `index.html`, sinon un rechargement sur `/titre/sintel`
-donne une 404. Ensuite, le serveur doit honorer les requêtes par plage d'octets
-(`Range`), sans quoi on ne peut pas se déplacer dans une vidéo. Caddy et nginx
-le font nativement.
+Deux points comptent. C'est une application à page unique : toute URL inconnue
+doit renvoyer `index.html`, sinon un rechargement sur `/titre/movie-603` donne
+une 404 — `server/index.mjs` s'en occupe. Et le serveur a besoin de la clé dans
+son environnement : il lit `.env` au démarrage, et prévient dans la console si
+`HEIWA_KEY` manque.
 
-Comme les salles partagées ont besoin d'un WebSocket, le site passe par le
-serveur Node (`npm start`) plutôt que par un simple dossier statique. Caddy fait
-le relais et transmet l'`upgrade` WebSocket tout seul :
+Un détail de la documentation HeiwaStream, qui surprend une fois en ligne :
+sans en-tête `User-Agent` nommé, l'API peut répondre une page web en 403 au
+lieu du JSON attendu. Le proxy envoie `Lucarne/1.0`.
 
 ```caddyfile
 lucarne.chez-moi.fr {
     encode gzip
 
-    # Les vidéos, servies directement depuis le disque
-    handle_path /videos/* {
-        root * /mnt/disque/videos
-        file_server
-    }
-
-    # Le site et les salles partagées (/sync)
+    # Le site, le proxy de l'API (/api/hs) et les salles partagées (/sync)
     reverse_proxy localhost:8080
 
     # Tout le site derrière un mot de passe partagé.
@@ -559,8 +567,6 @@ lucarne.chez-moi.fr {
 }
 ```
 
-Pour que le serveur Node redémarre tout seul, un service systemd :
-
 ```ini
 # /etc/systemd/system/lucarne.service
 [Unit]
@@ -570,7 +576,7 @@ After=network.target
 [Service]
 WorkingDirectory=/var/www/lucarne
 Environment=PORT=8080
-Environment=VIDEOS=/mnt/disque/videos
+Environment=HEIWA_KEY=hs_votre_cle
 ExecStart=/usr/bin/node server/index.mjs
 Restart=always
 User=www-data
@@ -585,99 +591,106 @@ sudo systemctl enable --now lucarne
 
 Caddy obtient et renouvelle le certificat HTTPS tout seul.
 
-Si vous préférez ne rien exposer sur Internet, installez
-[Tailscale](https://tailscale.com) sur le serveur et sur les appareils de vos
-proches : le site n'est alors joignable que depuis votre réseau privé, sans
-ouvrir le moindre port.
-
-### Débit nécessaire
-
-C'est votre **débit montant** qui limite, pas le descendant. Comptez environ
-5 Mb/s par personne en 1080p et 2,5 Mb/s en 720p, simultanément. Une fibre à
-500 Mb/s en envoi ne pose aucun problème ; un ADSL à 1 Mb/s ne tiendra pas un
-seul flux.
+**Le débit n'est plus un sujet.** La vidéo ne passe pas par votre serveur :
+elle va du lecteur HeiwaStream au spectateur. Votre machine ne sert que des
+pages et du JSON.
 
 ---
 
-## Raccourcis du lecteur
+## Raccourcis
+
+Les raccourcis de lecture appartiennent au lecteur HeiwaStream, qui a les
+siens. Deux touches sont à nous :
 
 | Touche | Effet |
 | --- | --- |
-| `Espace` ou `K` | Lecture / pause |
-| `←` `→` | Reculer / avancer de 10 secondes |
-| `↑` `↓` | Volume |
-| `F` | Plein écran |
-| `P` | Image dans l'image |
-| `M` | Couper le son |
-| `C` | Sous-titres |
-| `Échap` | Ferme le menu ouvert, puis le plein écran, puis le lecteur |
-
-Ailleurs sur le site, `/` ouvre la recherche.
+| `/` | Ouvre la recherche |
+| `Échap` | Quitte le lecteur (hors plein écran) |
 
 ---
 
 ## Structure
 
 ```
+.env                     HEIWA_KEY — jamais versionné
+server/
+  heiwa.mjs              Le proxy : cache, file d'attente, enrichissement
+  heiwa.d.mts            Ses types, pour vite.config.ts
+  securite.mjs           Mots de passe, jetons signés, cookies, adresses
+  mesures.mjs            Les compteurs que lit le tableau de bord
+  comptes.mjs            Les comptes des membres et leurs sessions
+  bibliotheque.mjs       Liste, reprises et recherches, par compte
+  evenements.mjs         Le journal d'usage et ses agrégations
+  compteRoutes.mjs       /api/compte, /api/bibliotheque, /api/evenements
+  admin.mjs              La serrure : mot de passe, session, audit
+  adminRoutes.mjs        Les routes /api/admin et l'écran de connexion
+  adminVite.mjs          La même garde pour le serveur de développement
+  sync.mjs               Le relais WebSocket des salles partagées
+  index.mjs              Serveur de production (site + proxy + admin + relais)
 src/
   config.ts              Nom du site et couleurs de profil
-  types/                 Les types partagés
-  data/catalog.ts        Le catalogue — c'est le fichier à remplacer
-  data/people.ts         Index des personnes, dérivé du catalogue
-  data/tmdb.pinned.ts      Films épinglés un par un (vide par défaut)
-  data/tmdb.series.ts      Séries importées (vide par défaut)
-  data/anime.ts            La catégorie Anime, remplie par import:mal
+  types/                 Le modèle, calqué sur ce que l'API renvoie
   lib/
-    poster.ts            Génération des affiches
-    genres.ts            Orthographe unique pour un même genre
-    playable.ts          Ce qui a une source, et ce qui n'en a pas
-    storage.ts           Persistance (interface + implémentation localStorage)
-    search.ts            Filtres, tri, suggestions
-    recommend.ts         Recommandations d'après la liste et l'historique
-    format.ts            Durées, horloges, comparaison sans accents
+    heiwa.ts             Le client de l'API — le seul à connaître ses réponses
+    compte.ts            Inscription, connexion, mon compte
+    suivi.ts             Les signaux que seul le navigateur connaît
+    images.ts            Chemins TMDB vers URL d'images
+    filtres.ts           Entre l'URL du catalogue et les paramètres de l'API
+    genres.ts            Les genres filtrables, et les équivalences
+    plateformes.ts       Les six plateformes que l'API sait filtrer
+    poster.ts            Les affiches dessinées, pour celles qui manquent
+    storage.ts           Persistance : navigateur sans compte, serveur avec
+    format.ts            Durées, horloges, langues, dates relatives
   hooks/
+    useRemote.ts         Un appel, trois états : chargement, donnée, erreur
     libraryContext.ts    Contexte et hook useLibrary
     library.tsx          Le fournisseur
-  components/            Cartes, carrousel, hero, recherche, navigation
-    Art.tsx              Image qui retombe sur l'affiche générée
-    Badge.tsx            « Lisible » / « Démo » au coin des affiches
+  components/
+    Art.tsx              Image qui retombe sur l'affiche dessinée
+    Badge.tsx            4K et VF au coin des affiches
+    RangeeDistante.tsx   Une rangée qui charge la sienne
+    Card.tsx Row.tsx Hero.tsx SearchOverlay.tsx Trailer.tsx RoomPanel.tsx
+  player/
+    Embed.tsx            L'iframe du lecteur et le pont postMessage
   sync/
     protocol.ts          Messages échangés avec le relais
     useWatchTogether.ts  Salle partagée : dérive, pause sur chargement, chat
-  player/                Lecteur vidéo, plein écran, image dans l'image,
-                         commandes du système
-  pages/                 Accueil, catalogue, fiche, personne, ma liste,
-                         lecture, 404
-server/
-  sync.mjs               Le relais WebSocket des salles partagées
-  index.mjs              Serveur de production (site + relais)
-public/demo/             La mire de test
+  admin/                 Le tableau de bord — second point d'entrée, jamais
+                         envoyé au visiteur. Surveillance, usage, comptes
+  pages/                 Accueil, catalogue, fiche, calendrier, ma liste,
+                         lecture, compte, 404
+admin.html               L'entrée de l'administration, à côté d'index.html
+donnees/                 Comptes, bibliothèques, journaux (non versionné)
+_to_delete/              L'ancien catalogue, à supprimer après vérification
 ```
+
+Le dossier `_to_delete/` contient ce que cette version a remplacé : l'ancien
+catalogue de démonstration, les imports TMDB et MyAnimeList, les courts
+métrages Creative Commons, le lecteur vidéo maison et la page personne. Rien
+n'y est importé par le code. Supprimez-le quand vous aurez vérifié que rien ne
+vous manque.
 
 ---
 
 ## Ce que ce projet ne fait pas
 
-Pour éviter les mauvaises surprises :
-
-- **Pas de transcodage à la volée.** Plex et Jellyfin convertissent le fichier
-  en temps réel selon l'appareil. Ici, le navigateur lit le fichier tel quel :
-  préparez vos fichiers à l'avance.
-- **Pas de synchronisation entre appareils** tant que `LucarneStore` écrit dans
-  `localStorage`. Chaque navigateur a sa propre liste.
-- **Pas de téléchargement hors ligne**, pas de Chromecast, pas d'AirPlay au-delà
-  de ce que le navigateur propose nativement sur une balise vidéo.
-- **Pas de récupération automatique de métadonnées.** Titres, synopsis et
-  génériques sont saisis à la main dans `catalog.ts`.
+- **Il n'héberge aucune vidéo** et n'en sert aucune. Le catalogue et la lecture
+  sont ceux de HeiwaStream ; sans clé valide, le site est vide.
+- **Pas de générique.** L'API n'expose ni casting ni réalisation.
+- **Pas de reprise à la seconde près, ni de synchro de lecture**, tant que le
+  lecteur distant reste muet — voir le chapitre Le lecteur.
+- **Pas de synchronisation entre appareils sans compte.** Sans inscription,
+  la liste reste dans le navigateur où elle a été faite.
+- **Pas de téléchargement hors ligne**, et pas de contrôle sur les options du
+  lecteur distant au-delà de ce que son API accepte.
 - **Pas d'historique de chat.** Les messages d'une séance partagée ne sont
-  jamais écrits sur disque ; fermer la salle les efface.
-- **Pas de voix ni de vidéo entre vous.** Le chat est en texte. Pour s'entendre,
-  gardez un appel à côté.
-
-Si l'un de ces points est rédhibitoire, Jellyfin fait tout cela et c'est gratuit.
-L'intérêt de Lucarne est ailleurs : c'est votre code, vous le changez comme vous
-voulez, et il ne dépend d'aucun service qui pourrait décider un jour de faire
-payer l'accès à distance.
+  jamais écrits sur disque.
+- **Pas de voix ni de vidéo entre vous.** Le chat est en texte.
+- **Plus de bibliothèque locale.** Les versions précédentes lisaient vos
+  propres fichiers ; cette version lit le catalogue HeiwaStream. Leur lecteur
+  sait jouer des sources à vous — voir
+  [la page Tes sources](https://heiwastream.fr/api?p=sources) — mais rien ici
+  ne s'en sert.
 
 ---
 
@@ -685,11 +698,11 @@ payer l'accès à distance.
 
 Le code de ce projet est à vous.
 
-Les quatre courts métrages inclus restent la propriété de la Blender Foundation
-et sont redistribués sous les licences indiquées sur chaque fiche et dans le pied
-de page : Creative Commons BY 3.0 pour *Big Buck Bunny*, *Sintel* et *Tears of
-Steel*, Creative Commons BY 2.5 pour *Elephants Dream*. Si vous retirez ces
-entrées du catalogue, retirez aussi les mentions correspondantes.
+Le catalogue, les disponibilités et la lecture sont fournis par HeiwaStream,
+selon ses propres conditions. Les affiches, fonds et résumés viennent de The
+Movie Database, via HeiwaStream : ce produit utilise l'API de TMDB mais n'est
+ni approuvé ni certifié par TMDB. La mention correspondante est dans le pied de
+page du site ; gardez-la.
 
 La police Archivo est sous SIL Open Font License, embarquée via
 `@fontsource-variable/archivo`.
