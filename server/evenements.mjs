@@ -10,9 +10,7 @@
  * le compte quand il y en a un, l'adresse IP, et l'appareil. Les visiteurs
  * doivent le savoir — le pied de page du site le dit.
  *
- * La rétention est réglable et vaut « illimité » par défaut. Le mécanisme de
- * purge existe donc avant d'être utile, pour pouvoir l'activer plus tard
- * sans rien migrer.
+ * Les adresses sont tronquées ; la rétention vaut 90 jours par défaut.
  *
  * Ce qu'on ne peut PAS enregistrer, et qu'il ne faut pas chercher : la durée
  * réellement regardée. Le lecteur est une iframe de HeiwaStream qui ne
@@ -27,6 +25,20 @@ import { resolve } from 'node:path'
 import { DONNEES, adresseVisible } from './securite.mjs'
 
 const DOSSIER = resolve(DONNEES, 'evenements')
+let dernierePurge = ''
+
+function adresseTronquee(req) {
+  const ip = adresseVisible(req)
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return ip.replace(/\.\d+$/, '.0/24')
+  if (ip.includes(':')) {
+    const [gauche, droite] = ip.split('::')
+    const debut = gauche ? gauche.split(':') : []
+    const fin = droite ? droite.split(':') : []
+    const blocs = droite === undefined ? debut : [...debut, ...Array(Math.max(0, 8 - debut.length - fin.length)).fill('0'), ...fin]
+    return blocs.slice(0, 3).map((b) => b || '0').join(':') + '::/48'
+  }
+  return 'inconnue'
+}
 
 /** Les types attendus. Un type inconnu est refusé plutôt que stocké. */
 const TYPES = new Set(['page', 'fiche', 'lecture', 'recherche', 'connexion', 'inscription', 'deconnexion'])
@@ -56,10 +68,12 @@ function appareil(ua) {
  */
 export function consigne(req, { type, ...reste }) {
   if (!TYPES.has(type)) return
+  const jour = jourDe()
+  if (dernierePurge !== jour) { purge(); dernierePurge = jour }
   const ligne = {
     a: new Date().toISOString(),
     type,
-    ip: adresseVisible(req),
+    ip: adresseTronquee(req),
     appareil: appareil(req.headers?.['user-agent']),
     ...reste,
   }
@@ -179,12 +193,11 @@ export function activiteDuCompte(compteId, jours = 90, maximum = 200) {
 
 /**
  * Efface les journaux plus vieux que N jours. Appelée au démarrage et une
- * fois par jour. Avec RETENTION_JOURS absent ou à 0, rien n'est effacé :
- * c'est le réglage actuel du site.
+ * fois par jour. Une valeur absente, invalide ou nulle revient à 90 jours.
  */
 export function purge() {
-  const jours = Number(process.env.RETENTION_JOURS ?? 0)
-  if (!Number.isFinite(jours) || jours <= 0) return 0
+  const reglage = Number(process.env.RETENTION_JOURS ?? 90)
+  const jours = Number.isFinite(reglage) && reglage > 0 ? Math.min(365, Math.max(1, Math.floor(reglage))) : 90
 
   const limite = new Date()
   limite.setDate(limite.getDate() - jours)

@@ -72,7 +72,7 @@ export function compteDe(req) {
   const jeton = litJeton(cookies(req).session, 'compte')
   if (!jeton?.id) return null
   const compte = tous().find((c) => c.id === jeton.id)
-  if (!compte || compte.suspendu) return null
+  if (!compte || compte.suspendu || (jeton.version ?? 0) !== (compte.sessionVersion ?? 0)) return null
   return compte
 }
 
@@ -121,6 +121,7 @@ export function reinitialise(id, nouveau) {
   const compte = comptes.find((c) => c.id === id)
   if (!compte) return false
   compte.motDePasse = empreinte(nouveau)
+  compte.sessionVersion = (compte.sessionVersion ?? 0) + 1
   enregistre(comptes)
   return true
 }
@@ -219,6 +220,7 @@ export function changeMotDePasse({ id, actuel, nouveau }) {
   if (soucis) return { erreur: 'motdepasse_invalide', message: soucis }
 
   compte.motDePasse = empreinte(nouveau)
+  compte.sessionVersion = (compte.sessionVersion ?? 0) + 1
   enregistre(comptes)
   return { compte }
 }
@@ -226,7 +228,7 @@ export function changeMotDePasse({ id, actuel, nouveau }) {
 /* ---------- cookies de session ---------- */
 
 export function cookieDeSession(req, compte) {
-  return cookieSession('session', signeJeton({ id: compte.id }, SESSION_MS, 'compte'), {
+  return cookieSession('session', signeJeton({ id: compte.id, version: compte.sessionVersion ?? 0 }, SESSION_MS, 'compte'), {
     req,
     dureeS: Math.floor(SESSION_MS / 1000),
   })

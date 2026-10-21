@@ -19,7 +19,7 @@ const LISTE_MAX = 500
 const REPRISES_MAX = 100
 const RECHERCHES_MAX = 12
 
-const VIDE = { maListe: [], progression: [], recherches: [] }
+const VIDE = { maListe: [], progression: [], recherches: [], favorisRadio: [] }
 
 function fichier(compteId) {
   /* L'identifiant vient d'un UUID que nous avons produit : il ne peut pas
@@ -37,6 +37,7 @@ export function bibliotheque(compteId) {
     maListe: Array.isArray(donnees.maListe) ? donnees.maListe : [],
     progression: Array.isArray(donnees.progression) ? donnees.progression : [],
     recherches: Array.isArray(donnees.recherches) ? donnees.recherches : [],
+    favorisRadio: Array.isArray(donnees.favorisRadio) ? donnees.favorisRadio : [],
   }
 }
 
@@ -104,4 +105,14 @@ export function changeRecherches(compteId, recherches) {
 /** Tout effacer pour un compte — à sa demande, ou à sa suppression. */
 export function effaceBibliotheque(compteId) {
   sauve(compteId, { ...VIDE })
+}
+
+export function changeFavoriRadio(compteId, stationId, ajouter) {
+  const donnees = bibliotheque(compteId)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stationId)) return null
+  if (ajouter && !donnees.favorisRadio.includes(stationId) && donnees.favorisRadio.length >= 100) return null
+  donnees.favorisRadio = donnees.favorisRadio.filter((id) => id !== stationId)
+  if (ajouter) donnees.favorisRadio = [stationId, ...donnees.favorisRadio].slice(0, 100)
+  sauve(compteId, donnees)
+  return donnees.favorisRadio
 }

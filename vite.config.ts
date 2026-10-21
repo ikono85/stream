@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { attachSync } from './server/sync.mjs'
 import { middlewareHeiwa } from './server/heiwa.mjs'
 import { middlewareAdmin } from './server/adminVite.mjs'
+import { middlewareRadio } from './server/radio.mjs'
 
 /**
  * Runs the shared-room relay inside the dev server, on /sync, so `npm run dev`
@@ -61,7 +62,11 @@ function admin(): PluginOption {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), sync(), heiwa(), admin()],
+  plugins: [react(), tailwindcss(), sync(), heiwa(), admin(), {
+    name: 'lucarne-radio',
+    configureServer(server) { server.middlewares.use(middlewareRadio()) },
+    configurePreviewServer(server) { server.middlewares.use(middlewareRadio()) },
+  }],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

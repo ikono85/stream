@@ -18,6 +18,7 @@ const LINKS = [
   { to: '/catalogue?type=anime', label: 'Animés', end: false },
   { to: '/calendrier', label: 'Calendrier', end: true },
   { to: '/ma-liste', label: 'Ma liste', end: true },
+  { to: '/radio', label: 'Radio', end: false },
 ]
 
 function tintOf(index: number): string {
@@ -111,7 +112,7 @@ export function Navbar() {
             </span>
           </Link>
 
-          <ul className="hidden items-center gap-1 md:flex">
+          <ul className="hidden items-center gap-1 lg:flex">
             {LINKS.map((link, i) => (
               <li key={link.to} className="relative">
                 <NavLink
@@ -241,7 +242,7 @@ export function Navbar() {
               type="button"
               onClick={() => setMenuOpen(true)}
               aria-label="Ouvrir le menu"
-              className="grid h-10 w-10 place-items-center rounded-full text-haze-300 transition-colors hover:bg-ink-700 hover:text-paper md:hidden"
+              className="grid h-10 w-10 place-items-center rounded-full text-haze-300 transition-colors hover:bg-ink-700 hover:text-paper lg:hidden"
             >
               <Icon name="menu" size={20} />
             </button>
@@ -253,7 +254,7 @@ export function Navbar() {
       <AnimatePresence>
         {menuOpen && (
           <motion.div
-            className="fixed inset-0 z-100 md:hidden"
+            className="fixed inset-0 z-100 lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

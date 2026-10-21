@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "test:audit": "node --test tests/audit.test.mjs",
+    "test:radio": "node --test tests/radio.test.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
@@ -14,6 +16,7 @@
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
+    "hls.js": "^1.7.3",
     "motion": "^14.4.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -33,5 +36,5 @@
     "typescript": "~7.0.2",
     "vite": "^8.3.4"
   },
-  "description": "Interface de streaming branch\u00e9e sur le catalogue HeiwaStream"
+  "description": "Interface de streaming branchée sur le catalogue HeiwaStream"
 }

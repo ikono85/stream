@@ -5,6 +5,11 @@ import { transitionsDeVue } from '@/lib/transitions'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { Home } from '@/pages/Home'
+import { useRadio } from '@/hooks/radioContext'
+import { RadioBar } from '@/components/RadioBar'
+import { useLibrary } from '@/hooks/libraryContext'
+
+const Radio = lazy(() => import('@/pages/Radio').then((m) => ({ default: m.Radio })))
 
 const Browse = lazy(() => import('@/pages/Browse').then((m) => ({ default: m.Browse })))
 const Title = lazy(() => import('@/pages/Title').then((m) => ({ default: m.Title })))
@@ -43,13 +48,19 @@ function RouteFallback() {
 
 export function App() {
   const location = useLocation()
+  const { station } = useRadio()
+  const { storageError, retryStorage } = useLibrary()
   /* The player takes the whole screen; chrome would only get in the way. */
   const bare = location.pathname.startsWith('/lecture/')
 
   return (
-    <>
+    <div className={station && !bare ? 'pb-[calc(6rem+env(safe-area-inset-bottom))]' : ''}>
       <ScrollToTop />
       {!bare && <Navbar />}
+      {storageError && <div role="alert" className="fixed inset-x-4 top-20 z-[110] mx-auto max-w-xl rounded-xl border border-lamp-500/40 bg-ink-900 p-4 text-sm text-paper shadow-xl">
+        <p>{storageError}</p>
+        <button type="button" onClick={retryStorage} className="mt-2 min-h-11 font-semibold text-lamp-400 underline">Réessayer</button>
+      </div>}
       <Suspense fallback={<RouteFallback />}>
         {/*
           Deux régimes, et ils ne peuvent pas cohabiter. `mode="wait"` retient
@@ -66,6 +77,7 @@ export function App() {
             <Route path="/titre/:id" element={<Title />} />
             <Route path="/ma-liste" element={<MyList />} />
             <Route path="/calendrier" element={<Calendrier />} />
+            <Route path="/radio" element={<Radio />} />
             <Route path="/connexion" element={<Connexion />} />
             <Route path="/inscription" element={<Inscription />} />
             <Route path="/mon-compte" element={<MonCompte />} />
@@ -75,6 +87,7 @@ export function App() {
         </Enchainement>
       </Suspense>
       {!bare && <Footer />}
-    </>
+      <RadioBar />
+    </div>
   )
 }

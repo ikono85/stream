@@ -55,11 +55,12 @@ export function vautLaPeine(contenu: ContenuLocal): boolean {
 }
 
 async function envoie(chemin: string, corps: unknown): Promise<void> {
-  await fetch(`/api/bibliotheque${chemin}`, {
+  const reponse = await fetch(`/api/bibliotheque${chemin}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(corps),
   })
+  if (!reponse.ok) throw new Error('La sauvegarde a échoué. Réessayez ; vos données locales sont conservées.')
 }
 
 /**
@@ -69,13 +70,9 @@ async function envoie(chemin: string, corps: unknown): Promise<void> {
  * Renvoie ce qui a été ajouté, pour pouvoir le dire à la personne.
  */
 export async function verseDansLeCompte(contenu: ContenuLocal): Promise<{ titres: number; reprises: number }> {
-  let actuel: ContenuLocal = { maListe: [], progression: [] }
-  try {
-    const reponse = await fetch('/api/bibliotheque')
-    if (reponse.ok) actuel = (await reponse.json()) as ContenuLocal
-  } catch {
-    /* On repart d'une bibliothèque vide : la fusion ajoutera tout. */
-  }
+  const reponse = await fetch('/api/bibliotheque')
+  if (!reponse.ok) throw new Error('Impossible de lire votre bibliothèque. Réessayez avant de l’importer.')
+  const actuel = (await reponse.json()) as ContenuLocal
 
   const listeFusionnee = [...new Set([...actuel.maListe, ...contenu.maListe])]
   const ajoutes = listeFusionnee.length - actuel.maListe.length

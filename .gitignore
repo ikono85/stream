@@ -29,6 +29,7 @@ dist-ssr
 
 # Cache des fiches rassemblées par le proxy.
 .cache/
+.sauvegardes/
 
 # Journal d'audit de l'administration.
 donnees/

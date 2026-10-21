@@ -1,5 +1,57 @@
 # Lucarne
 
+## Corrections de fiabilité (audit, points 3 à 8)
+
+- Changer ou réinitialiser un mot de passe révoque les anciennes sessions membres.
+  Les comptes existants restent compatibles avant leur premier changement.
+- Les modifications de bibliothèque sont confirmées après sauvegarde. Une erreur
+  propose de réessayer ; un import interrompu conserve les données locales.
+- Une seule carte de reprise est affichée par titre. Ouvrir un épisode conserve
+  sa position connue et attend le chargement de la bibliothèque.
+- Recherche et bande-annonce gardent le focus clavier dans leur fenêtre et le
+  rendent au bouton d'ouverture à la fermeture.
+- Les filtres et la pagination du catalogue sont conservés dans l'historique.
+- Les nouveaux journaux d'usage tronquent les adresses IPv4 (/24) et IPv6 (/48).
+  `RETENTION_JOURS` vaut 90 par défaut, de 1 à 365 jours ; une valeur nulle ou
+  invalide revient à 90. La purge passe au démarrage du serveur de production,
+  puis chaque jour, et avant le premier événement de chaque journée en développement.
+  Les anciennes lignes gardent leur format jusqu'à leur expiration.
+
+`npm run test:audit` vérifie sessions, reprises, échecs d'import, stockage et
+rétention dans un dossier temporaire, sans modifier les données du site.
+
+## Radio
+
+La section `/radio` utilise [Radio Browser](https://www.radio-browser.info/),
+un annuaire libre sans clé d'API. Elle permet de rechercher une station et
+de combiner les filtres pays, genre et langue. Les stations proposées dans
+l'exploration utilisent des flux HTTPS.
+
+Le lecteur audio reste monté pendant la navigation : lecture/pause, volume,
+silence et arrêt sont disponibles dans la barre du bas. Les flux HLS utilisent
+le lecteur natif ou hls.js, chargé seulement quand nécessaire. Ouvrir une page
+de lecture vidéo arrête la radio. Une station indisponible affiche un message
+et peut être relancée ; l'annuaire communautaire ne garantit pas les flux.
+
+Les favoris nécessitent un compte et sont conservés sous forme d'UUID Radio
+Browser dans `favorisRadio`, dans la bibliothèque existante du membre. Ajouter
+ou retirer une radio ne modifie ni les films ni les reprises. Limite : 100
+stations par compte. Les comptes existants n'ont pas besoin de migration.
+
+`server/radio.mjs` découvre les miroirs par DNS SRV, les interroge avec un
+User-Agent identifié et met les métadonnées en cache. Il ne relaie pas l'audio :
+le navigateur contacte directement la station. L'intégration fonctionne avec
+Vite, l'aperçu et le serveur Node de production.
+
+`npm run test:radio` vérifie la validation des stations, l'accès aux favoris,
+la séparation des comptes et la conservation des bibliothèques. Les données
+de test vivent dans un dossier temporaire, jamais dans `donnees/`.
+
+Une copie des sources avant cet ajout est conservée dans
+`.sauvegardes/avant-radio.zip` (sans données personnelles ni configuration secrète).
+
+---
+
 Une interface de streaming branchée sur le catalogue **HeiwaStream**. React 19,
 TypeScript, Vite 8, Tailwind 4.
 
@@ -457,10 +509,10 @@ rapporte depuis *Mon compte*. L'administrateur peut effacer l'historique d'un
 compte sans toucher au compte — c'est le geste à faire quand quelqu'un le
 demande — ou supprimer le compte, ce qui emporte aussi ses traces.
 
-**La rétention** est illimitée par défaut, conformément au réglage choisi.
-`RETENTION_JOURS=90` dans `.env` suffit à activer la purge automatique, qui
-tourne au démarrage puis une fois par jour. Le mécanisme existe avant d'être
-utile, pour pouvoir changer d'avis sans rien migrer.
+**La rétention** des journaux d'usage vaut 90 jours par défaut.
+`RETENTION_JOURS` permet de la régler de 1 à 365 jours ; une valeur absente,
+nulle ou invalide revient à 90 jours. Les nouvelles adresses IP sont tronquées.
+La purge automatique tourne au démarrage puis une fois par jour.
 
 ---
 

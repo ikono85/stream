@@ -13,6 +13,7 @@ import { newRoomCode } from '@/sync/protocol'
 import { useWatchTogether } from '@/sync/useWatchTogether'
 import { SITE } from '@/config'
 import { NotFound } from '@/pages/NotFound'
+import { lectureCommencee } from '@/lib/progression'
 
 /**
  * LA LECTURE
@@ -30,7 +31,8 @@ export function Watch() {
   const { id } = useParams<{ id: string }>()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
-  const { saveProgress, progressFor, profile, compte } = useLibrary()
+  const { ready, saveProgress, progressFor, profile, compte } = useLibrary()
+  const lectureNotée = useRef('')
 
   const lecteurRef = useRef<PlayerHandle>(null)
   const [panneauOuvert, setPanneauOuvert] = useState(true)
@@ -128,7 +130,10 @@ export function Watch() {
   /* Le seul signal de visionnage dont on dispose. Le lecteur étant muet, on
      sait qu'une lecture a été lancée, jamais combien de temps elle a duré. */
   useEffect(() => {
-    if (!entry) return
+    if (!ready || !entry || (serie && (saison.loading || saison.error || !episode))) return
+    const cle = `${profile?.id}:${entry.id}:${episode?.id ?? ''}`
+    if (lectureNotée.current === cle) return
+    lectureNotée.current = cle
     suit('lecture', {
       id: entry.id,
       titre: entry.title,
@@ -140,14 +145,9 @@ export function Watch() {
        reprendre une série au bon endroit, ce qui est l'essentiel. Une durée à
        zéro dit « lancé, position inconnue », et l'interface s'y tient au lieu
        d'inventer une barre de progression. */
-    saveProgress({
-      entryId: entry.id,
-      ...(episode ? { episodeId: episode.id } : {}),
-      seconds: 0,
-      duration: 0,
-      updatedAt: Date.now(),
-    })
-  }, [entry, episode, saveProgress])
+    saveProgress(lectureCommencee(entry.id, episode?.id,
+      episode || !serie ? progressFor(entry.id, episode?.id) : undefined))
+  }, [entry, episode, saveProgress, progressFor, ready, serie, saison.loading, saison.error, profile?.id])
 
   const enregistre = useCallback((seconds: number, duration: number) => {
     if (!entry || duration <= 0) return
@@ -244,7 +244,7 @@ export function Watch() {
 
   /* Le temps que la fiche arrive — et, pour une série, la saison avec elle :
      l'adresse du lecteur dépend du numéro d'épisode. */
-  if (!entry || (serie && saison.loading && !saison.data)) {
+  if (!ready || !entry || (serie && saison.loading)) {
     return (
       <main className="grid min-h-dvh place-items-center bg-ink-950">
         <div className="flex items-center gap-3 text-sm text-haze-400">

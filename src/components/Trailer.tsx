@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Icon } from '@/components/Icon'
+import { useModalFocus } from '@/hooks/useModalFocus'
 
 /**
  * TRAILER OVERLAY
@@ -23,30 +24,30 @@ interface Props {
 
 export function TrailerOverlay({ trailer, title, open, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useModalFocus(open, dialogRef, onClose, closeRef)
   const reduced = useReducedMotion()
 
   useEffect(() => {
     if (!open) return
 
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
 
     /* The page behind must not scroll under the overlay. */
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    closeRef.current?.focus()
 
     return () => {
-      window.removeEventListener('keydown', onKey)
       document.body.style.overflow = previous
     }
-  }, [open, onClose])
+  }, [open])
 
   return (
     <AnimatePresence>
       {open && (
         <motion.div
           key="trailer"
+          ref={dialogRef}
+          tabIndex={-1}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

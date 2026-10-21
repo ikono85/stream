@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { App } from '@/App'
 import { LibraryProvider } from '@/hooks/library'
+import { RadioProvider } from '@/hooks/radio'
 import '@/index.css'
 
 const root = document.getElementById('root')
@@ -12,7 +13,7 @@ createRoot(root).render(
   <StrictMode>
     <BrowserRouter>
       <LibraryProvider>
-        <App />
+        <RadioProvider><App /></RadioProvider>
       </LibraryProvider>
     </BrowserRouter>
   </StrictMode>,

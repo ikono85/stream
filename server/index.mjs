@@ -31,6 +31,7 @@ import { estAdmin, motDePasseConfigure } from './admin.mjs'
 import { pageConnexion, serviAdminApi } from './adminRoutes.mjs'
 import { serviCompteApi } from './compteRoutes.mjs'
 import { purge } from './evenements.mjs'
+import { serviRadio } from './radio.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const dist = resolve(here, '..', 'dist')
@@ -110,6 +111,10 @@ const videos = process.env.VIDEOS
   : null
 
 const server = createServer((req, res) => {
+  if (req.url?.startsWith('/api/radio/')) {
+    void serviRadio(req, res).catch(() => { res.statusCode = 500; res.end() })
+    return
+  }
   /* Le catalogue passe par le proxy : la clé reste ici, le navigateur ne la
      voit jamais. Testé avant le site, dont le mode `single` renverrait
      index.html pour une route d'API. */
@@ -194,9 +199,7 @@ server.listen(port, () => {
   if (reserves.size > 0) {
     console.log(`${reserves.size} fichier(s) réservé(s) à l'administration, protégés par session.`)
   }
-  /* La purge des journaux d'usage. Sans RETENTION_JOURS, elle ne fait rien :
-     le mécanisme est en place avant d'être utile, pour pouvoir l'activer
-     plus tard sans rien migrer. */
+  /* Conservation des journaux d'usage : 90 jours par défaut. */
   const efface = purge()
   if (efface > 0) console.log(`${efface} journal(aux) d'usage purgé(s).`)
   setInterval(purge, 24 * 3600 * 1000).unref()

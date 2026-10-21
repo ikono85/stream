@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { magasinPour, type LucarneStore } from '@/lib/storage'
 import { moi, type Compte } from '@/lib/compte'
 import { LibraryContext, type LibraryValue } from '@/hooks/libraryContext'
@@ -14,12 +14,53 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [myList, setMyList] = useState<string[]>([])
   const [progress, setProgress] = useState<Progress[]>([])
   const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [storageError, setStorageError] = useState<string | null>(null)
+  const retryRef = useRef<(() => void) | null>(null)
+  const failed = useRef(new Set<() => void>())
+  const running = useRef(new Set<() => void>())
+  const queue = useRef<Promise<void>>(Promise.resolve())
+  const listRef = useRef<string[]>([])
+  const ownerRef = useRef<LucarneStore | null>(null)
+  const [storageRevision, setStorageRevision] = useState(0)
 
   /**
    * Le magasin dépend du compte : le serveur quand on est connecté, le
    * navigateur sinon. Aucun composant ne sait lequel il manipule.
    */
   const [magasin, setMagasin] = useState<LucarneStore>(() => magasinPour(null))
+  useEffect(() => {
+    ownerRef.current = magasin
+    setStorageError(null)
+    retryRef.current = null
+    failed.current.clear()
+  }, [magasin])
+
+  const retryStorage = useCallback(() => { retryRef.current?.() }, [])
+
+  // Les écritures sont ordonnées ; l'écran ne confirme qu'après sauvegarde.
+  const mutate = useCallback((action: () => Promise<void>) => {
+    const execute = () => {
+      if (running.current.has(execute)) return
+      running.current.add(execute)
+      queue.current = queue.current.then(async () => {
+        try {
+          if (ownerRef.current !== magasin) return
+          await action()
+          if (ownerRef.current !== magasin) return
+          failed.current.delete(execute)
+          if (failed.current.size === 0) { setStorageError(null); retryRef.current = null }
+        } catch {
+          if (ownerRef.current !== magasin) return
+          setStorageError('La sauvegarde a échoué. Votre dernière modification n’a pas été confirmée.')
+          failed.current.add(execute)
+          retryRef.current = () => { for (const retry of [...failed.current]) retry() }
+        } finally {
+          running.current.delete(execute)
+        }
+      })
+    }
+    execute()
+  }, [magasin])
 
   const rafraichisCompte = useCallback(async () => {
     try {
@@ -45,6 +86,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     if (compteEnCours) return
     let cancelled = false
     setReady(false)
+    setMyList([])
+    listRef.current = []
+    setProgress([])
+    setSearchHistory([])
     void (async () => {
       const list = await magasin.listProfiles()
       const activeId = await magasin.getActiveProfileId()
@@ -52,16 +97,20 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       setProfiles(list)
       setProfile(active)
-      setReady(true)
-    })()
+    })().catch(() => {
+      if (cancelled) return
+      setStorageError('Impossible de charger votre bibliothèque. Réessayez.')
+      retryRef.current = () => setStorageRevision((n) => n + 1)
+    })
     return () => { cancelled = true }
-  }, [magasin, compteEnCours])
+  }, [magasin, compteEnCours, storageRevision])
 
   /* Per-profile data follows the active profile. */
   useEffect(() => {
     if (!profile) return
     let cancelled = false
     void (async () => {
+      setReady(false)
       const [list, prog, hist] = await Promise.all([
         magasin.getMyList(profile.id),
         magasin.getProgress(profile.id),
@@ -69,11 +118,18 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       ])
       if (cancelled) return
       setMyList(list)
+      listRef.current = list
       setProgress(prog)
       setSearchHistory(hist)
-    })()
+      setReady(true)
+      setStorageError(null)
+    })().catch(() => {
+      if (cancelled) return
+      setStorageError('Impossible de charger votre bibliothèque. Réessayez.')
+      retryRef.current = () => setStorageRevision((n) => n + 1)
+    })
     return () => { cancelled = true }
-  }, [profile, magasin])
+  }, [profile, magasin, storageRevision])
 
   const switchProfile = useCallback((id: string) => {
     setProfiles((current) => {
@@ -101,47 +157,59 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, [magasin])
 
   const toggleList = useCallback((entryId: string) => {
-    if (!profile) return
-    setMyList((current) => {
+    if (!profile || !ready) return
+    mutate(async () => {
+      const current = listRef.current
       const next = current.includes(entryId)
         ? current.filter((x) => x !== entryId)
         : [entryId, ...current]
-      void magasin.setMyList(profile.id, next)
-      return next
+      await magasin.setMyList(profile.id, next)
+      if (ownerRef.current !== magasin) return
+      listRef.current = next
+      setMyList(next)
     })
-  }, [profile, magasin])
+  }, [profile, magasin, mutate, ready])
 
   const saveProgress = useCallback((p: Progress) => {
     if (!profile) return
-    setProgress((current) => {
-      const key = (x: Progress) => `${x.entryId}:${x.episodeId ?? ''}`
-      return [p, ...current.filter((x) => key(x) !== key(p))].slice(0, 60)
+    mutate(async () => {
+      await magasin.putProgress(profile.id, p)
+      if (ownerRef.current !== magasin) return
+      setProgress((current) => {
+        const key = (x: Progress) => `${x.entryId}:${x.episodeId ?? ''}`
+        return [p, ...current.filter((x) => key(x) !== key(p))].slice(0, 60)
+      })
     })
-    void magasin.putProgress(profile.id, p)
-  }, [profile, magasin])
+  }, [profile, magasin, mutate])
 
   const dropProgress = useCallback((entryId: string) => {
     if (!profile) return
-    setProgress((current) => current.filter((p) => p.entryId !== entryId))
-    void magasin.dropProgress(profile.id, entryId)
-  }, [profile, magasin])
+    mutate(async () => {
+      await magasin.dropProgress(profile.id, entryId)
+      if (ownerRef.current === magasin) setProgress((current) => current.filter((p) => p.entryId !== entryId))
+    })
+  }, [profile, magasin, mutate])
 
   const pushSearch = useCallback((query: string) => {
     if (!profile) return
     const q = query.trim()
     if (q.length < 2) return
-    setSearchHistory((current) => [q, ...current.filter((x) => x !== q)].slice(0, 8))
-    void magasin.pushSearchHistory(profile.id, q)
-  }, [profile, magasin])
+    mutate(async () => {
+      await magasin.pushSearchHistory(profile.id, q)
+      if (ownerRef.current === magasin) setSearchHistory((current) => [q, ...current.filter((x) => x !== q)].slice(0, 8))
+    })
+  }, [profile, magasin, mutate])
 
   const clearSearch = useCallback(() => {
     if (!profile) return
-    setSearchHistory([])
-    void magasin.clearSearchHistory(profile.id)
-  }, [profile, magasin])
+    mutate(async () => {
+      await magasin.clearSearchHistory(profile.id)
+      if (ownerRef.current === magasin) setSearchHistory([])
+    })
+  }, [profile, magasin, mutate])
 
   const value = useMemo<LibraryValue>(() => ({
-    ready, profiles, profile, switchProfile, addProfile, removeProfile,
+    ready, storageError, retryStorage, profiles, profile, switchProfile, addProfile, removeProfile,
     compte, compteEnCours, inscriptionOuverte, rafraichisCompte,
     myList,
     inList: (id) => myList.includes(id),
@@ -152,7 +220,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     saveProgress, dropProgress,
     searchHistory, pushSearch, clearSearch,
   }), [
-    ready, profiles, profile, switchProfile, addProfile, removeProfile,
+    ready, storageError, retryStorage, profiles, profile, switchProfile, addProfile, removeProfile,
     compte, compteEnCours, inscriptionOuverte, rafraichisCompte,
     myList, toggleList, progress, saveProgress, dropProgress,
     searchHistory, pushSearch, clearSearch,

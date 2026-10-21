@@ -12,6 +12,7 @@ import { calendrier, catalogue, classement, fichesDe, nouveautes } from '@/lib/h
 import { episodeLabel, jour } from '@/lib/format'
 import { GENRES } from '@/lib/genres'
 import { PLATEFORMES } from '@/lib/plateformes'
+import { reprisesParTitre } from '@/lib/progression'
 
 /** Titres par rangée. Au-delà, on fait défiler pour le plaisir de défiler. */
 const RANGEE = 16
@@ -37,7 +38,7 @@ export function Home() {
   /* Les titres commencés, redemandés par identifiant : « ma liste » et la
      reprise ne gardent que des identifiants, jamais les titres eux-mêmes. */
   const repris = useMemo(
-    () => [...progress].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 12),
+    () => reprisesParTitre(progress).slice(0, 12),
     [progress],
   )
   const idsRepris = useMemo(() => [...new Set(repris.map((p) => p.entryId))], [repris])

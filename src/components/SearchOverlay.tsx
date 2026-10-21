@@ -9,6 +9,7 @@ import { posterArt } from '@/lib/poster'
 import { image, TAILLES } from '@/lib/images'
 import { shape, langues } from '@/lib/format'
 import type { Entry } from '@/types'
+import { useModalFocus } from '@/hooks/useModalFocus'
 
 interface Props {
   open: boolean
@@ -32,6 +33,8 @@ export function SearchOverlay({ open, onClose }: Props) {
   const [cherche, setCherche] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useModalFocus(open, dialogRef, onClose, inputRef)
   const navigate = useNavigate()
   const reduced = useReducedMotion()
   const { searchHistory, pushSearch, clearSearch } = useLibrary()
@@ -42,8 +45,6 @@ export function SearchOverlay({ open, onClose }: Props) {
     setResults([])
     setErreur(null)
     setActive(0)
-    const id = requestAnimationFrame(() => inputRef.current?.focus())
-    return () => cancelAnimationFrame(id)
   }, [open])
 
   /* La recherche elle-même : annulée à chaque frappe, relancée au repos. */
@@ -140,6 +141,8 @@ export function SearchOverlay({ open, onClose }: Props) {
           />
 
           <motion.div
+            ref={dialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-label="Rechercher"

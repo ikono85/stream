@@ -53,7 +53,7 @@ function write(key: string, value: unknown): void {
   try {
     localStorage.setItem(`${NS}.${key}`, JSON.stringify(value))
   } catch {
-    /* Private mode, quota, blocked storage — the app keeps working in memory. */
+    throw new Error('Le navigateur ne peut pas enregistrer ces données. Vérifiez l’espace disponible et les autorisations de stockage.')
   }
 }
 

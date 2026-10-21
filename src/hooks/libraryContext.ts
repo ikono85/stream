@@ -4,6 +4,8 @@ import type { Compte } from '@/lib/compte'
 
 export interface LibraryValue {
   ready: boolean
+  storageError: string | null
+  retryStorage: () => void
 
   /**
    * Le compte connecté, ou null. Le site est ouvert : sans compte, la liste

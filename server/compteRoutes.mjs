@@ -13,7 +13,7 @@
  */
 
 import {
-  bibliotheque, changeListe, changeRecherches, effaceBibliotheque, poseReprise, retireReprise,
+  bibliotheque, changeListe, changeRecherches, effaceBibliotheque, poseReprise, retireReprise, changeFavoriRadio,
 } from './bibliotheque.mjs'
 import {
   adresseVisible, changeMotDePasse, compteDe, connecte, cookieDeDeconnexion, cookieDeSession,
@@ -129,6 +129,16 @@ async function routesBibliotheque(req, res, chemin) {
 
   if (chemin === '' && req.method === 'GET') {
     repond(res, 200, bibliotheque(compte.id))
+    return true
+  }
+
+  if (chemin === 'radios' && req.method === 'GET') {
+    repond(res, 200, { favorisRadio: bibliotheque(compte.id).favorisRadio })
+    return true
+  }
+  if (chemin.startsWith('radios/') && ['PUT', 'DELETE'].includes(req.method)) {
+    const favorisRadio = changeFavoriRadio(compte.id, chemin.slice('radios/'.length), req.method === 'PUT')
+    repond(res, favorisRadio ? 200 : 400, favorisRadio ? { favorisRadio } : { message: 'Station invalide ou limite de 100 favoris atteinte.' })
     return true
   }
 

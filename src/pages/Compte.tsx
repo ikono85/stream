@@ -55,6 +55,7 @@ function Erreur({ message }: { message: string | null }) {
  */
 function Reprendre({ contenu, onFini }: { contenu: ContenuLocal; onFini: () => void }) {
   const [enCours, setEnCours] = useState(false)
+  const [erreur, setErreur] = useState<string | null>(null)
   const [bilan, setBilan] = useState<{ titres: number; reprises: number } | null>(null)
 
   const titres = contenu.maListe.length
@@ -62,9 +63,13 @@ function Reprendre({ contenu, onFini }: { contenu: ContenuLocal; onFini: () => v
 
   async function reprends() {
     setEnCours(true)
-    const resultat = await verseDansLeCompte(contenu)
-    setBilan(resultat)
-    setEnCours(false)
+    setErreur(null)
+    try {
+      const resultat = await verseDansLeCompte(contenu)
+      setBilan(resultat)
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : 'Import impossible. Réessayez ; vos données locales sont conservées.')
+    } finally { setEnCours(false) }
   }
 
   if (bilan) {
@@ -85,6 +90,7 @@ function Reprendre({ contenu, onFini }: { contenu: ContenuLocal; onFini: () => v
       titre="Reprendre votre liste ?"
       sous="Ce navigateur gardait des choses avant que vous ayez un compte."
     >
+      <Erreur message={erreur} />
       <ul className="mt-6 space-y-1.5 text-sm text-haze-300">
         {titres > 0 && (
           <li className="flex items-center gap-2">
@@ -256,7 +262,7 @@ export function Inscription() {
       {/* Dit une fois, clairement, au moment où la personne décide. */}
       <p className="mt-4 text-xs leading-relaxed text-haze-400">
         L'activité de votre compte — fiches ouvertes, lectures lancées, recherches — est
-        enregistrée par le site, avec votre adresse IP. Vous pouvez supprimer votre compte et
+          enregistrée par le site, avec une adresse IP tronquée et une durée de conservation limitée. Vous pouvez supprimer votre compte et
         tout ce qui s'y rapporte à tout moment, depuis la page Mon compte.
       </p>
     </Cadre>
@@ -315,6 +321,9 @@ export function MonCompte() {
 
   return (
     <Cadre titre="Mon compte" sous={`Connecté en tant que ${compte.nom}.`}>
+      <Link to="/radio?vue=favoris" className="mt-6 flex min-h-12 items-center justify-between rounded-xl border border-ink-600 px-4 text-sm text-paper transition-colors hover:border-lamp-500">
+        Mes radios favorites <span aria-hidden="true" className="text-lamp-400">→</span>
+      </Link>
       <form onSubmit={changeLeMotDePasse} className="mt-7 space-y-3">
         <p className="font-wide text-xs font-bold uppercase tracking-[0.14em] text-haze-400">
           Changer de mot de passe
@@ -348,7 +357,7 @@ export function MonCompte() {
           Supprimer mon compte
         </p>
         <p className="mt-2 text-sm leading-relaxed text-haze-400">
-          Votre compte, votre liste, vos reprises et toute votre activité enregistrée seront
+          Votre compte, votre liste, vos radios favorites, vos reprises et toute votre activité enregistrée seront
           effacés. C'est immédiat et sans retour possible.
         </p>
         {confirmeSuppression ? (

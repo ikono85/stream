@@ -1,4 +1,5 @@
 type Name =
+  | 'radio' | 'heart'
   | 'play' | 'pause' | 'plus' | 'check' | 'search' | 'close'
   | 'chevronLeft' | 'chevronRight' | 'chevronDown' | 'arrowLeft'
   | 'volume' | 'mute' | 'expand' | 'collapse'
@@ -10,6 +11,8 @@ type Name =
 const FILLED = new Set<Name>(['play'])
 
 const PATHS: Record<Name, string> = {
+  radio: 'M5 8.5 18 3M4.5 8.5h15a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1ZM8.5 17a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM15 12h3M15 16h3',
+  heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z',
   play: 'M8 5.5v13a.8.8 0 0 0 1.22.68l10.5-6.5a.8.8 0 0 0 0-1.36L9.22 4.82A.8.8 0 0 0 8 5.5Z',
   pause: 'M9 5v14M15 5v14',
   plus: 'M12 5v14M5 12h14',
