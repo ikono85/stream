@@ -3,6 +3,7 @@ import { Carte, Chiffre, Onglet, dateHeure, heure, nombre } from '@/admin/commun
 import { Icon } from '@/components/Icon'
 import { Usage } from '@/admin/Usage'
 import { Comptes } from '@/admin/Comptes'
+import { Signalements } from '@/admin/Signalements'
 
 /**
  * LE TABLEAU DE BORD
@@ -51,7 +52,7 @@ function duree(secondes: number): string {
   return m ? `${h} h ${m} min` : `${h} h`
 }
 
-type Section = 'surveillance' | 'usage' | 'comptes'
+type Section = 'surveillance' | 'usage' | 'comptes' | 'signalements'
 
 export function Admin() {
   const [section, setSection] = useState<Section>('surveillance')
@@ -129,6 +130,7 @@ export function Admin() {
             </Onglet>
             <Onglet actif={section === 'usage'} onClick={() => setSection('usage')}>Usage</Onglet>
             <Onglet actif={section === 'comptes'} onClick={() => setSection('comptes')}>Comptes</Onglet>
+            <Onglet actif={section === 'signalements'} onClick={() => setSection('signalements')}>Signalements</Onglet>
           </div>
 
           <div className="ml-auto flex items-center gap-4 text-xs text-haze-400">
@@ -148,6 +150,7 @@ export function Admin() {
       <main className="gutter mx-auto max-w-[80rem] py-8">
         {section === 'usage' && <Usage />}
         {section === 'comptes' && <Comptes />}
+        {section === 'signalements' && <Signalements />}
 
         {section === 'surveillance' && (
         <>

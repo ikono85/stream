@@ -9,7 +9,7 @@ import { stationPublique } from '../server/radio.mjs'
 
 const temporaire = await mkdtemp(join(tmpdir(), 'lucarne-radio-tests-'))
 await mkdir(join(temporaire, 'server'))
-for (const fichier of ['securite.mjs', 'comptes.mjs', 'bibliotheque.mjs', 'compteRoutes.mjs', 'evenements.mjs']) {
+for (const fichier of ['securite.mjs', 'comptes.mjs', 'bibliotheque.mjs', 'compteRoutes.mjs', 'evenements.mjs', 'signalements.mjs']) {
   await copyFile(new URL(`../server/${fichier}`, import.meta.url), join(temporaire, 'server', fichier))
 }
 const charge = (fichier) => import(pathToFileURL(join(temporaire, 'server', fichier)).href)
@@ -43,6 +43,23 @@ test('les favoris radio nécessitent une session', async () => {
     const r = await route(`/api/bibliotheque/radios${method === 'GET' ? '' : `/${station}`}`, method)
     assert.equal(r.statusCode, 401)
   }
+})
+
+test('les épisodes vus sont propres au compte, réversibles et indépendants des reprises', async () => {
+  assert.equal((await route('/api/bibliotheque/episodes-vus', 'PUT')).statusCode, 401)
+  const celia = comptes.inscrit({ nom: 'Episodes Celia', motDePasse: 'Episodes-test-123', ip: 'test-c' }).compte
+  const ep = 'tv-123-s1e2'
+  biblio.poseReprise(celia.id, { entryId: 'tv-123', episodeId: ep, seconds: 42, duration: 300 })
+  assert.deepEqual(biblio.changeEpisodeVu(celia.id, ep, true), [ep])
+  assert.deepEqual(biblio.changeEpisodeVu(celia.id, ep, true), [ep])
+  assert.deepEqual(biblio.bibliotheque(bob.id).episodesVus, [])
+  biblio.changeListe(celia.id, ['movie-603'])
+  biblio.changeFavoriRadio(celia.id, station, true)
+  assert.deepEqual(biblio.bibliotheque(celia.id).episodesVus, [ep])
+  assert.equal(biblio.bibliotheque(celia.id).progression.find((p) => p.episodeId === ep).seconds, 42)
+  assert.equal(biblio.changeEpisodeVu(celia.id, '../secret', true), null)
+  assert.equal(biblio.changeEpisodeVu(celia.id, ep, 'oui'), null)
+  assert.deepEqual(biblio.changeEpisodeVu(celia.id, ep, false), [])
 })
 test('ajouter, retrouver et retirer un favori sans le partager avec un autre compte', async () => {
   assert.deepEqual((await route('/api/bibliotheque/radios', 'GET', alice)).body.favorisRadio, [])

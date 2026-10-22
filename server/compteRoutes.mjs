@@ -13,13 +13,14 @@
  */
 
 import {
-  bibliotheque, changeListe, changeRecherches, effaceBibliotheque, poseReprise, retireReprise, changeFavoriRadio,
+  bibliotheque, changeListe, changeRecherches, effaceBibliotheque, poseReprise, retireReprise, changeFavoriRadio, changeEpisodeVu,
 } from './bibliotheque.mjs'
 import {
   adresseVisible, changeMotDePasse, compteDe, connecte, cookieDeDeconnexion, cookieDeSession,
   inscrit, reglages, supprimeCompte, vuePublique,
 } from './comptes.mjs'
 import { consigne, effaceTracesDuCompte } from './evenements.mjs'
+import { serviSignalement } from './signalements.mjs'
 
 function repond(res, statut, corps, entetes = {}) {
   res.statusCode = statut
@@ -142,6 +143,13 @@ async function routesBibliotheque(req, res, chemin) {
     return true
   }
 
+  if (chemin === 'episodes-vus' && req.method === 'PUT') {
+    const corps = await corpsJson(req)
+    const episodesVus = changeEpisodeVu(compte.id, corps?.episodeId, corps?.vu)
+    repond(res, episodesVus ? 200 : 400, episodesVus ? { episodesVus } : { erreur: 'episode_invalide' })
+    return true
+  }
+
   if (chemin === 'liste' && req.method === 'PUT') {
     const corps = await corpsJson(req)
     repond(res, 200, changeListe(compte.id, corps?.ids))
@@ -208,6 +216,7 @@ export async function serviCompteApi(req, res) {
   }
 
   const p = url.pathname
+  if (p === '/api/signalements') return serviSignalement(req, res, corpsJson)
   if (p === '/api/evenements') return routeEvenement(req, res)
   if (p.startsWith('/api/compte/')) return routesCompte(req, res, p.slice('/api/compte/'.length))
   if (p === '/api/bibliotheque' || p.startsWith('/api/bibliotheque/')) {

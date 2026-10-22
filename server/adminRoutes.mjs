@@ -22,6 +22,7 @@ import {
 } from './comptes.mjs'
 import { effaceBibliotheque } from './bibliotheque.mjs'
 import { activiteDuCompte, effaceTracesDuCompte, resumeUsage } from './evenements.mjs'
+import { listeSignalements } from './signalements.mjs'
 
 /** Les dernières lignes du journal d'audit, les plus récentes d'abord. */
 function journal(combien = 50) {
@@ -80,6 +81,12 @@ export async function serviAdminApi(req, res) {
   /* Tout le reste est derrière la serrure. */
   if (!estAdmin(req)) {
     refuse(res)
+    return true
+  }
+
+  if (chemin === 'signalements' && req.method === 'GET') {
+    try { repondJson(res, 200, { entrees: listeSignalements() }) }
+    catch { repondJson(res, 503, { message: 'Les signalements sont indisponibles.' }) }
     return true
   }
 

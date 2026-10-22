@@ -1,3 +1,7 @@
+import { FilmAmbiance } from '@/components/FilmAmbiance'
+import { EpisodeVu } from '@/components/EpisodeVu'
+import { FavoriteIcon } from '@/components/FavoriteIcon'
+import { useSpoilers } from '@/hooks/useSpoilers'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageTransition } from '@/components/layout/PageTransition'
@@ -35,6 +39,7 @@ import { NotFound } from '@/pages/NotFound'
  * aucune route de distribution ni de réalisation, donc aucun générique ici.
  */
 export function Title() {
+  const { sansSpoilers } = useSpoilers()
   const { id } = useParams<{ id: string }>()
   const cible = id ? lisEntryId(id) : null
   const { inList, toggleList, progressFor } = useLibrary()
@@ -132,6 +137,7 @@ export function Title() {
           <div className="absolute inset-0 bg-[linear-gradient(to_top,var(--color-ink-950)_0%,var(--color-ink-950)_38%,rgb(4_7_15_/_0.72)_72%,rgb(4_7_15_/_0.45)_100%)]" />
         </div>
 
+        <FilmAmbiance poster={entry.posterPath} />
         <div className="gutter mx-auto max-w-[90rem] pt-28 lg:pt-36">
           <Link
             to="/catalogue"
@@ -157,7 +163,7 @@ export function Title() {
                 {entry.title}
               </h1>
 
-              {entry.tagline && (
+              {!sansSpoilers && entry.tagline && (
                 <p className="mt-2 font-wide text-sm italic text-lamp-500">{entry.tagline}</p>
               )}
 
@@ -192,7 +198,8 @@ export function Title() {
                 </ul>
               ) : null}
 
-              {entry.synopsis && (
+              {sansSpoilers && <p className="mt-6 text-sm text-haze-400">Résumé et bandes-annonces masqués · mode sans spoilers activé.</p>}
+              {!sansSpoilers && entry.synopsis && (
                 <p className="mt-6 max-w-[62ch] leading-relaxed text-haze-300">{entry.synopsis}</p>
               )}
 
@@ -204,7 +211,7 @@ export function Title() {
                   <span className="font-medium">
                     Prochain épisode · S{entry.nextEpisode.season} E{entry.nextEpisode.episode}
                   </span>
-                  {entry.nextEpisode.name && (
+                  {!sansSpoilers && entry.nextEpisode.name && (
                     <span className="text-haze-300">« {entry.nextEpisode.name} »</span>
                   )}
                   {entry.nextEpisode.airDate && (
@@ -224,7 +231,7 @@ export function Title() {
                   {resume ? 'Reprendre' : 'Regarder'}
                 </Link>
 
-                {entry.trailer && (
+                {!sansSpoilers && entry.trailer && (
                   <button
                     type="button"
                     onClick={() => setBandeAnnonce(true)}
@@ -237,10 +244,11 @@ export function Title() {
 
                 <button
                   type="button"
+                  aria-pressed={saved}
                   onClick={() => toggleList(entry.id)}
                   className="inline-flex h-12 items-center gap-2.5 rounded-full border border-ink-500 bg-ink-900/70 px-6 font-medium text-paper transition-colors hover:border-haze-400 hover:bg-ink-800"
                 >
-                  <Icon name={saved ? 'check' : 'plus'} size={18} />
+                  <FavoriteIcon saved={saved} />
                   {saved ? 'Dans ma liste' : 'Ma liste'}
                 </button>
               </div>
@@ -294,7 +302,7 @@ export function Title() {
                 >
                   {saisons.map((s) => (
                     <option key={s.number} value={s.number}>
-                      {s.name ?? `Saison ${s.number}`} ({s.episodeCount})
+                      {sansSpoilers ? `Saison ${s.number}` : s.name ?? `Saison ${s.number}`} ({s.episodeCount})
                     </option>
                   ))}
                 </select>
@@ -336,7 +344,7 @@ export function Title() {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                        <h3 className="font-wide font-semibold text-paper">{ep.title}</h3>
+                        <h3 className="font-wide font-semibold text-paper">{sansSpoilers ? `Épisode ${ep.number}` : ep.title}</h3>
                         {ep.airDate && (
                           <span className="text-xs text-haze-400 nums-tabular">{jour(ep.airDate)}</span>
                         )}
@@ -362,10 +370,12 @@ export function Title() {
                       )}
                     </div>
 
+                    <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+                    <EpisodeVu episodeId={ep.id} />
                     {lisible ? (
                       <Link
                         to={`/lecture/${entry.id}?episode=${ep.id}`}
-                        aria-label={`Lire l'épisode ${ep.number}, ${ep.title}`}
+                        aria-label={`Lire l'épisode ${ep.number}, ${sansSpoilers ? `Épisode ${ep.number}` : ep.title}`}
                         className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-ink-600 text-paper transition-colors hover:border-lamp-500 hover:bg-lamp-500 hover:text-ink-950"
                       >
                         <Icon name="play" size={16} className="translate-x-px" />
@@ -378,6 +388,7 @@ export function Title() {
                         <Icon name="warning" size={16} />
                       </span>
                     )}
+                    </div>
                   </li>
                 )
               })}
@@ -402,7 +413,7 @@ export function Title() {
         </div>
       )}
 
-      {entry.trailer && (
+      {!sansSpoilers && entry.trailer && (
         <TrailerOverlay
           trailer={entry.trailer}
           title={entry.title}

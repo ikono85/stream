@@ -14,6 +14,7 @@ import type { Progress } from '@/types'
  */
 
 export interface ContenuLocal {
+  episodesVus?: string[]
   maListe: string[]
   progression: Progress[]
 }
@@ -30,6 +31,7 @@ export async function contenuLocal(): Promise<ContenuLocal> {
     const profils = await store.listProfiles()
     const listes = await Promise.all(profils.map((p) => store.getMyList(p.id)))
     const progressions = await Promise.all(profils.map((p) => store.getProgress(p.id)))
+    const vus = await Promise.all(profils.map((p) => store.getWatched(p.id)))
 
     const maListe = [...new Set(listes.flat())]
 
@@ -41,7 +43,7 @@ export async function contenuLocal(): Promise<ContenuLocal> {
       if (!connue || p.updatedAt > connue.updatedAt) parCle.set(cle, p)
     }
 
-    return { maListe, progression: [...parCle.values()] }
+    return { maListe, progression: [...parCle.values()], episodesVus: [...new Set(vus.flat())] }
   } catch {
     /* Stockage bloqué ou navigation privée : il n'y a simplement rien à
        reprendre, et ce n'est pas une erreur. */
@@ -51,7 +53,7 @@ export async function contenuLocal(): Promise<ContenuLocal> {
 
 /** Y a-t-il quelque chose à proposer ? */
 export function vautLaPeine(contenu: ContenuLocal): boolean {
-  return contenu.maListe.length > 0 || contenu.progression.length > 0
+  return contenu.maListe.length > 0 || contenu.progression.length > 0 || Boolean(contenu.episodesVus?.length)
 }
 
 async function envoie(chemin: string, corps: unknown): Promise<void> {
@@ -88,5 +90,9 @@ export async function verseDansLeCompte(contenu: ContenuLocal): Promise<{ titres
     reprises += 1
   }
 
+  const vus = new Set(actuel.episodesVus ?? [])
+  for (const episodeId of contenu.episodesVus ?? []) {
+    if (!vus.has(episodeId)) await envoie('/episodes-vus', { episodeId, vu: true })
+  }
   return { titres: ajoutes, reprises }
 }

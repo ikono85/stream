@@ -1,3 +1,5 @@
+import { FavoriteIcon } from '@/components/FavoriteIcon'
+import { useSpoilers } from '@/hooks/useSpoilers'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -83,6 +85,7 @@ export function HeroSkeleton() {
 }
 
 export function Hero({ entries }: { entries: Entry[] }) {
+  const { sansSpoilers } = useSpoilers()
   const reduced = useReducedMotion()
   const { inList, toggleList } = useLibrary()
   const [held, setHeld] = useState(false)
@@ -166,7 +169,7 @@ export function Hero({ entries }: { entries: Entry[] }) {
               )}
             </motion.h1>
 
-            {entry.tagline && (
+            {!sansSpoilers && entry.tagline && (
               <motion.p {...step(1)} className="mt-3 font-wide text-sm italic text-lamp-500">
                 {entry.tagline}
               </motion.p>
@@ -179,7 +182,7 @@ export function Hero({ entries }: { entries: Entry[] }) {
               {meta.map((m) => <span key={m}>{m}</span>)}
             </motion.p>
 
-            {entry.synopsis && (
+            {!sansSpoilers && entry.synopsis && (
               <motion.p
                 {...step(3)}
                 className="mt-4 max-w-[52ch] text-[0.95rem] leading-relaxed text-haze-300 line-clamp-3 sm:text-base"
@@ -199,10 +202,11 @@ export function Hero({ entries }: { entries: Entry[] }) {
 
               <button
                 type="button"
-                onClick={() => toggleList(entry.id)}
+                aria-pressed={saved}
+                  onClick={() => toggleList(entry.id)}
                 className="inline-flex h-12 items-center gap-2.5 rounded-full border border-ink-500 bg-ink-900/70 px-6 font-medium text-paper backdrop-blur-sm transition-colors hover:border-haze-400 hover:bg-ink-800"
               >
-                <Icon name={saved ? 'check' : 'plus'} size={18} />
+                <FavoriteIcon saved={saved} />
                 {saved ? 'Dans ma liste' : 'Ma liste'}
               </button>
 

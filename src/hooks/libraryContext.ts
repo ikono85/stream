@@ -3,6 +3,8 @@ import type { Profile, Progress } from '@/types'
 import type { Compte } from '@/lib/compte'
 
 export interface LibraryValue {
+  watched: string[]
+  setEpisodeWatched: (episodeId: string, watched: boolean) => void
   ready: boolean
   storageError: string | null
   retryStorage: () => void

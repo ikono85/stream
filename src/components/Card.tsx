@@ -1,3 +1,5 @@
+import { FavoriteIcon } from '@/components/FavoriteIcon'
+import { useSpoilers } from '@/hooks/useSpoilers'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Icon } from '@/components/Icon'
@@ -24,6 +26,7 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
   /** Let the grid decide the width instead of the carousel's fixed step. */
   fluid?: boolean
 }) {
+  const { sansSpoilers } = useSpoilers()
   const { inList, toggleList } = useLibrary()
   const saved = inList(entry.id)
   const forme = shape(entry)
@@ -139,7 +142,7 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
               <p className="mt-1 truncate text-[0.66rem] text-haze-300">{langues(entry.languages)}</p>
             ) : null}
 
-            {entry.synopsis && (
+            {!sansSpoilers && entry.synopsis && (
               <p className="mt-1.5 text-[0.68rem] leading-snug line-clamp-2 text-haze-400">
                 {entry.synopsis}
               </p>
@@ -155,7 +158,8 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
               </Link>
               <button
                 type="button"
-                onClick={() => toggleList(entry.id)}
+                aria-pressed={saved}
+                  onClick={() => toggleList(entry.id)}
                 aria-label={saved ? `Retirer ${entry.title} de ma liste` : `Ajouter ${entry.title} à ma liste`}
                 className={`grid h-8 w-8 place-items-center rounded-full border transition-colors ${
                   saved
@@ -163,7 +167,7 @@ export function PosterCard({ entry, eager = false, fluid = false }: {
                     : 'border-ink-500 text-paper hover:border-haze-400 hover:bg-ink-800'
                 }`}
               >
-                <Icon name={saved ? 'check' : 'plus'} size={15} />
+                <FavoriteIcon saved={saved} size={15} />
               </button>
             </div>
           </div>

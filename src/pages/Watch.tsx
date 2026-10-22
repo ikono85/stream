@@ -1,3 +1,6 @@
+import { SpoilerToggle } from '@/components/SpoilerToggle'
+import { EpisodeVu } from '@/components/EpisodeVu'
+import { useSpoilers } from '@/hooks/useSpoilers'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Embed, type PlayerHandle } from '@/player/Embed'
@@ -6,7 +9,7 @@ import { Icon } from '@/components/Icon'
 import { useLibrary } from '@/hooks/libraryContext'
 import { useRemote } from '@/hooks/useRemote'
 import {
-  episodeIdDe, episodes as chargeEpisodes, fiche, lisEntryId, lisEpisodeId, urlLecteur,
+  episodes as chargeEpisodes, fiche, lisEntryId, lisEpisodeId, urlLecteur,
 } from '@/lib/heiwa'
 import { suit } from '@/lib/suivi'
 import { newRoomCode } from '@/sync/protocol'
@@ -14,6 +17,7 @@ import { useWatchTogether } from '@/sync/useWatchTogether'
 import { SITE } from '@/config'
 import { NotFound } from '@/pages/NotFound'
 import { lectureCommencee } from '@/lib/progression'
+import { SignalerProbleme } from '@/components/SignalerProbleme'
 
 /**
  * LA LECTURE
@@ -28,6 +32,7 @@ import { lectureCommencee } from '@/lib/progression'
  * rien : Embed le détecte et l'annonce. On ne fait pas semblant.
  */
 export function Watch() {
+  const { sansSpoilers } = useSpoilers()
   const { id } = useParams<{ id: string }>()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
@@ -79,31 +84,31 @@ export function Watch() {
     return listeEpisodes.find((e) => e.sources > 0) ?? listeEpisodes[0]
   }, [serie, listeEpisodes, demande])
 
-  /**
-   * Ce qui suit : l'épisode d'après dans la saison, sinon le premier de la
-   * saison suivante quand la fiche en annonce une. On ne va pas chercher
-   * cette saison pour le savoir — son nombre d'épisodes suffit.
-   */
+  const prochaineSaison = useMemo(() => {
+    if (!episode || !entry || listeEpisodes.some((e) => e.number > episode.number)) return undefined
+    return [...(entry.seasons ?? [])]
+      .sort((a, b) => a.number - b.number)
+      .find((s) => s.number > episode.season && s.episodeCount > 0)?.number
+  }, [entry, episode, listeEpisodes])
+  const suite = useRemote(async (signal) => {
+    if (!cible || prochaineSaison === undefined) return null
+    const saisons = await chargeEpisodes(cible.tmdb, prochaineSaison, signal)
+    return { tmdb: cible.tmdb, saison: prochaineSaison, episodes: saisons.find((s) => s.number === prochaineSaison)?.episodes ?? [] }
+  }, [cible?.tmdb, prochaineSaison])
+
+  // Une saison annoncée ne garantit pas que son premier épisode soit lisible.
   const suivant = useMemo(() => {
     if (!entry || !serie || !episode) return undefined
-    const index = listeEpisodes.findIndex((e) => e.number === episode.number)
-    const apres = index >= 0 ? listeEpisodes[index + 1] : undefined
+    const apres = [...listeEpisodes].sort((a, b) => a.number - b.number).find((e) => e.number > episode.number)
     if (apres) {
       return apres.sources > 0
         ? { id: apres.id, season: apres.season, number: apres.number, title: apres.title }
         : undefined
     }
-    const saisons = entry.seasons ?? []
-    const rang = saisons.findIndex((s) => s.number === episode.season)
-    const prochaine = rang >= 0 ? saisons[rang + 1] : undefined
-    if (!prochaine || prochaine.episodeCount < 1) return undefined
-    return {
-      id: episodeIdDe(entry.tmdb, prochaine.number, 1),
-      season: prochaine.number,
-      number: 1,
-      title: `Saison ${prochaine.number}, épisode 1`,
-    }
-  }, [entry, serie, episode, listeEpisodes])
+    if (suite.loading || suite.error || suite.data?.tmdb !== entry.tmdb || suite.data.saison !== prochaineSaison) return undefined
+    const premier = [...suite.data.episodes].sort((a, b) => a.number - b.number)[0]
+    return premier && premier.sources > 0 ? premier : undefined
+  }, [entry, serie, episode, listeEpisodes, suite.data, suite.loading, suite.error, prochaineSaison])
 
   const avance = progressFor(entry?.id ?? '', episode?.id)
   /* Dans une salle, ce sont les autres qui décident d'où l'on part. */
@@ -183,12 +188,12 @@ export function Watch() {
   const aSuivre = useMemo(() => {
     if (!suivant || !finDeVideo) return null
     return {
-      title: suivant.title,
+      title: sansSpoilers ? `Épisode ${suivant.number}` : suivant.title,
       caption: `Saison ${suivant.season}, épisode ${suivant.number}`,
       /* Dans une salle, partir seul laisserait les autres derrière. */
       skippable: !salle,
     }
-  }, [suivant, finDeVideo, salle])
+  }, [suivant, finDeVideo, salle, sansSpoilers])
 
   const sors = useCallback(() => {
     if (entry) navigate(`/titre/${entry.id}`)
@@ -262,7 +267,7 @@ export function Watch() {
   )
 
   const legende = serie && episode
-    ? `Saison ${episode.season}, épisode ${episode.number} — ${episode.title}`
+    ? `Saison ${episode.season}, épisode ${episode.number}${sansSpoilers ? '' : ` — ${episode.title}`}`
     : entry.genres?.length
       ? `${entry.year > 0 ? `${entry.year} · ` : ''}${entry.genres.join(', ')}`
       : entry.year > 0 ? String(entry.year) : undefined
@@ -297,7 +302,23 @@ export function Watch() {
 
   return (
     <div className="flex h-dvh w-full bg-ink-950">
-      <div className="relative min-w-0 flex-1">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 flex-wrap justify-end gap-2 px-4 py-1">
+          <SpoilerToggle />
+          {episode && <EpisodeVu episodeId={episode.id} />}
+          <SignalerProbleme key={`${entry.id}-${episode?.id ?? ''}`} entryId={entry.id} titre={entry.title} episodeId={episode?.id} />
+        </div>
+        {serie && (
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-ink-700 px-4 py-2 text-xs text-haze-300">
+            <span>{suivant ? `À suivre : S${suivant.season} E${suivant.number}` : suite.loading ? 'Vérification de la suite…' : suite.error ? 'Impossible de vérifier la suite' : 'Aucun épisode suivant disponible'}</span>
+            {suite.error && <button type="button" onClick={suite.recharge} className="text-lamp-500">Réessayer</button>}
+            {suivant && <button type="button" disabled={Boolean(salle)} onClick={() => versEpisode(suivant.id)} title={salle ? 'Quittez la séance partagée pour changer d’épisode.' : sansSpoilers ? `Épisode ${suivant.number}` : suivant.title} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-lamp-500 px-4 font-semibold text-ink-950 disabled:opacity-50">
+              <Icon name="next" size={16} /> Épisode suivant
+            </button>}
+            {suivant && salle && <span>Quittez la séance pour changer d’épisode.</span>}
+          </div>
+        )}
+        <div className="relative min-h-0 flex-1">
         <Embed
           key={episode?.id ?? entry.id}
           handle={lecteurRef}
@@ -318,6 +339,7 @@ export function Watch() {
           headerExtra={boutonSalle}
           notice={avertissement}
         />
+        </div>
       </div>
 
       {salle && panneauOuvert && (

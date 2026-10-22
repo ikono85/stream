@@ -1,5 +1,63 @@
 # Lucarne
 
+## Épisodes vus
+
+Chaque épisode de la fiche et l'épisode courant du lecteur proposent
+**Marquer comme vu**. Le bouton devient **Vu** ; cliquer à nouveau annule
+le marquage. L'état n'est confirmé qu'après sauvegarde. Il est conservé par
+profil local sans compte, et dans la bibliothèque du compte après connexion.
+Les anciennes bibliothèques commencent avec une liste vide, sans migration.
+L'import volontaire des données du navigateur inclut aussi les épisodes vus.
+
+Le marquage est indépendant des reprises et n'invente aucune durée de lecture.
+Les nouveautés suivies masquent désormais les épisodes marqués vus, plutôt que
+ceux simplement ouverts. Jusqu'à 20 000 épisodes peuvent être marqués vus.
+
+## Affichage et spoilers
+
+Le bouton **Sans spoilers** dans la navigation et au-dessus du lecteur active
+ou désactive une préférence mémorisée dans ce navigateur. Elle masque les
+résumés et accroches, les bandes-annonces et les noms de saisons et d'épisodes
+affichés par Lucarne, y compris dans le calendrier. Les numéros d'épisodes,
+dates et disponibilités restent visibles. Le contenu interne de l'iframe
+HeiwaStream reste sous le contrôle du lecteur distant.
+
+L'ajout à Ma liste anime la coche après confirmation de la sauvegarde, sauf
+si le système demande de réduire les animations. Les fiches utilisent une
+version floutée de l'affiche pour produire leur ambiance colorée ; une image
+manquante conserve le fond habituel.
+
+## Signaler un problème
+
+Le bouton du lecteur ouvre un formulaire avec cinq motifs et un commentaire
+facultatif (1 000 caractères maximum). Le titre et l'épisode sont joints
+automatiquement. L'enregistrement est confirmé seulement après sauvegarde sur
+le serveur dans `donnees/signalements.json`. Aucune adresse IP ni identité de
+compte n'est enregistrée dans ce fichier. Les cinq envois autorisés par tranche
+de dix minutes et par adresse sont comptés uniquement en mémoire.
+
+L'onglet **Signalements** de `/admin` affiche les 2 000 derniers signalements.
+Son API exige la même autorisation que le reste de l'administration. Rien
+n'est envoyé directement à HeiwaStream et aucune correction n'est automatique.
+`node --test tests/signalements.test.mjs` vérifie la sauvegarde, la validation,
+le refus des origines étrangères et la limitation des envois dans un dossier
+temporaire isolé.
+
+## Séries suivies et épisode suivant
+
+L'accueil affiche « Du nouveau dans vos séries » pour les séries de Ma liste.
+Cette section croise les cinquante derniers ajouts de séries du catalogue avec
+la liste du profil et masque les épisodes marqués comme vus. Elle ne représente donc
+pas un inventaire complet des épisodes non vus. Les sorties attendues proviennent
+du calendrier ; leurs dates ne garantissent pas la disponibilité des sources.
+Le suivi fonctionne dans le navigateur sans compte et avec la bibliothèque du
+compte après connexion. Aucune notification système n'est envoyée.
+
+Le lecteur propose un bouton « Épisode suivant » sans attendre de signal de fin
+de l'iframe. La disponibilité des sources est vérifiée, y compris au changement
+de saison. Le bouton reste désactivé pendant une séance partagée pour éviter de
+changer seul d'épisode.
+
 ## Application installable
 
 Un tutoriel animé apparaît après quatre secondes sur l'accueil, sans interrompre

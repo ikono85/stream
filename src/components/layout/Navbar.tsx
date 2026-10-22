@@ -1,3 +1,4 @@
+import { SpoilerToggle } from '@/components/SpoilerToggle'
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -136,6 +137,7 @@ export function Navbar() {
           </ul>
 
           <div className="ml-auto flex items-center gap-1">
+            <SpoilerToggle />
             <button
               type="button"
               onClick={() => setSearchOpen(true)}

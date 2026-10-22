@@ -13,6 +13,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [myList, setMyList] = useState<string[]>([])
   const [progress, setProgress] = useState<Progress[]>([])
+  const [watched, setWatched] = useState<string[]>([])
+  const activeProfile = useRef<string | undefined>(undefined)
+  activeProfile.current = profile?.id
   const [searchHistory, setSearchHistory] = useState<string[]>([])
   const [storageError, setStorageError] = useState<string | null>(null)
   const retryRef = useRef<(() => void) | null>(null)
@@ -89,6 +92,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setMyList([])
     listRef.current = []
     setProgress([])
+    setWatched([])
     setSearchHistory([])
     void (async () => {
       const list = await magasin.listProfiles()
@@ -111,15 +115,17 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     void (async () => {
       setReady(false)
-      const [list, prog, hist] = await Promise.all([
+      const [list, prog, hist, vus] = await Promise.all([
         magasin.getMyList(profile.id),
         magasin.getProgress(profile.id),
         magasin.getSearchHistory(profile.id),
+        magasin.getWatched(profile.id),
       ])
       if (cancelled) return
       setMyList(list)
       listRef.current = list
       setProgress(prog)
+      setWatched(vus)
       setSearchHistory(hist)
       setReady(true)
       setStorageError(null)
@@ -170,6 +176,15 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     })
   }, [profile, magasin, mutate, ready])
 
+  const setEpisodeWatched = useCallback((episodeId: string, vu: boolean) => {
+    if (!profile || !ready) return
+    mutate(async () => {
+      if (activeProfile.current !== profile.id) return
+      const next = await magasin.setEpisodeWatched(profile.id, episodeId, vu)
+      if (ownerRef.current === magasin && activeProfile.current === profile.id) setWatched(next)
+    })
+  }, [profile, ready, magasin, mutate])
+
   const saveProgress = useCallback((p: Progress) => {
     if (!profile) return
     mutate(async () => {
@@ -209,6 +224,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, [profile, magasin, mutate])
 
   const value = useMemo<LibraryValue>(() => ({
+    watched, setEpisodeWatched,
     ready, storageError, retryStorage, profiles, profile, switchProfile, addProfile, removeProfile,
     compte, compteEnCours, inscriptionOuverte, rafraichisCompte,
     myList,
@@ -220,6 +236,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     saveProgress, dropProgress,
     searchHistory, pushSearch, clearSearch,
   }), [
+    watched, setEpisodeWatched,
     ready, storageError, retryStorage, profiles, profile, switchProfile, addProfile, removeProfile,
     compte, compteEnCours, inscriptionOuverte, rafraichisCompte,
     myList, toggleList, progress, saveProgress, dropProgress,

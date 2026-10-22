@@ -1,3 +1,4 @@
+import { useSpoilers } from '@/hooks/useSpoilers'
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PageTransition } from '@/components/layout/PageTransition'
@@ -29,6 +30,7 @@ function Jour({ date, sorties, dansMaListe }: {
   sorties: Upcoming[]
   dansMaListe: (id: string) => boolean
 }) {
+  const { sansSpoilers } = useSpoilers()
   const ecart = ecartEnJours(date)
   const cestAujourdhui = ecart === 0
 
@@ -64,7 +66,7 @@ function Jour({ date, sorties, dansMaListe }: {
                       </span>
                     )}
                   </span>
-                  {sortie.episodeTitle && (
+                  {!sansSpoilers && sortie.episodeTitle && (
                     <span className="mt-0.5 block truncate text-xs text-haze-400">
                       {sortie.episodeTitle}
                     </span>

@@ -1,3 +1,4 @@
+import { useSpoilers } from '@/hooks/useSpoilers'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageTransition } from '@/components/layout/PageTransition'
@@ -13,6 +14,7 @@ import { episodeLabel, jour } from '@/lib/format'
 import { GENRES } from '@/lib/genres'
 import { PLATEFORMES } from '@/lib/plateformes'
 import { reprisesParTitre } from '@/lib/progression'
+import { SeriesSuivies } from '@/components/SeriesSuivies'
 
 /** Titres par rangée. Au-delà, on fait défiler pour le plaisir de défiler. */
 const RANGEE = 16
@@ -29,6 +31,7 @@ const GENRES_MAX = 8
 const EN_RAYON = ['Action', 'Comédie', 'Science-Fiction', 'Animation', 'Horreur', 'Drame', 'Thriller', 'Documentaire']
 
 export function Home() {
+  const { sansSpoilers } = useSpoilers()
   const { ready, progress } = useLibrary()
 
   /* Le classement de la semaine sert deux fois : le bandeau et la première
@@ -93,6 +96,7 @@ export function Home() {
       {top.data && top.data.length > 0 ? <Hero entries={top.data} /> : <HeroSkeleton />}
 
       <div className="mx-auto max-w-[90rem] pb-8">
+        <SeriesSuivies prochaines={semaine.data ?? []} />
         {!ready && (
           <Row title="Reprendre">
             {Array.from({ length: 4 }, (_, i) => <ResumeSkeleton key={i} />)}
@@ -179,7 +183,7 @@ export function Home() {
                       <span className="block truncate text-sm font-medium text-paper">{sortie.title}</span>
                       <span className="mt-0.5 block truncate text-xs text-haze-400">
                         {episodeLabel(sortie.season, sortie.episode)}
-                        {sortie.episodeTitle ? ` · ${sortie.episodeTitle}` : ''}
+                        {!sansSpoilers && sortie.episodeTitle ? ` · ${sortie.episodeTitle}` : ''}
                       </span>
                     </span>
                     <Icon name="chevronRight" size={16} className="shrink-0 text-haze-400" />

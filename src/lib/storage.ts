@@ -18,6 +18,8 @@ import type { Compte } from '@/lib/compte'
  * authentification", for the shape that fits this interface.
  */
 export interface LucarneStore {
+  getWatched(profileId: string): Promise<string[]>
+  setEpisodeWatched(profileId: string, episodeId: string, watched: boolean): Promise<string[]>
   listProfiles(): Promise<Profile[]>
   createProfile(name: string): Promise<Profile>
   renameProfile(id: string, name: string): Promise<void>
@@ -62,6 +64,17 @@ function uid(): string {
 }
 
 class LocalStore implements LucarneStore {
+  async getWatched(profileId: string): Promise<string[]> {
+    return read<string[]>(`watched.${profileId}`, [])
+  }
+  async setEpisodeWatched(profileId: string, episodeId: string, watched: boolean): Promise<string[]> {
+    const all = await this.getWatched(profileId)
+    if (watched && !all.includes(episodeId) && all.length >= 20000) throw new Error('Limite des épisodes vus atteinte.')
+    const next = all.filter((id) => id !== episodeId)
+    if (watched) next.push(episodeId)
+    write(`watched.${profileId}`, next)
+    return next
+  }
   async listProfiles(): Promise<Profile[]> {
     const saved = read<Profile[]>('profiles', [])
     if (saved.length) return saved
@@ -155,6 +168,7 @@ export const store: LucarneStore = new LocalStore()
  * du voisin en changeant un numéro dans une URL.
  */
 interface Charge {
+  episodesVus?: string[]
   maListe: string[]
   progression: Progress[]
   recherches: string[]
@@ -170,6 +184,12 @@ async function appelle<T>(chemin: string, options: RequestInit = {}): Promise<T>
 }
 
 class StoreDistant implements LucarneStore {
+  async getWatched(): Promise<string[]> {
+    return (await appelle<Charge>('')).episodesVus ?? []
+  }
+  async setEpisodeWatched(_profileId: string, episodeId: string, watched: boolean): Promise<string[]> {
+    return (await appelle<{ episodesVus: string[] }>('/episodes-vus', { method: 'PUT', body: JSON.stringify({ episodeId, vu: watched }) })).episodesVus
+  }
   /* Champ déclaré puis assigné : les propriétés de paramètre de
      TypeScript ne sont pas effaçables, et ce projet compile sans
      transformation de syntaxe. */

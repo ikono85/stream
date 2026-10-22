@@ -19,7 +19,7 @@ const LISTE_MAX = 500
 const REPRISES_MAX = 100
 const RECHERCHES_MAX = 12
 
-const VIDE = { maListe: [], progression: [], recherches: [], favorisRadio: [] }
+const VIDE = { maListe: [], progression: [], recherches: [], favorisRadio: [], episodesVus: [] }
 
 function fichier(compteId) {
   /* L'identifiant vient d'un UUID que nous avons produit : il ne peut pas
@@ -38,6 +38,7 @@ export function bibliotheque(compteId) {
     progression: Array.isArray(donnees.progression) ? donnees.progression : [],
     recherches: Array.isArray(donnees.recherches) ? donnees.recherches : [],
     favorisRadio: Array.isArray(donnees.favorisRadio) ? donnees.favorisRadio : [],
+    episodesVus: Array.isArray(donnees.episodesVus) ? donnees.episodesVus : [],
   }
 }
 
@@ -59,6 +60,16 @@ export function changeListe(compteId, ids) {
   donnees.maListe = propres
   sauve(compteId, donnees)
   return donnees
+}
+
+export function changeEpisodeVu(compteId, episodeId, vu) {
+  if (typeof episodeId !== 'string' || !/^tv-[1-9]\d{0,9}-s\d{1,3}e[1-9]\d{0,3}$/.test(episodeId) || typeof vu !== 'boolean') return null
+  const donnees = bibliotheque(compteId)
+  if (vu && !donnees.episodesVus.includes(episodeId) && donnees.episodesVus.length >= 20000) return null
+  donnees.episodesVus = donnees.episodesVus.filter((id) => id !== episodeId)
+  if (vu) donnees.episodesVus.push(episodeId)
+  sauve(compteId, donnees)
+  return donnees.episodesVus
 }
 
 function repriseValide(p) {
